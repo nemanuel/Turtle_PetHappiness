@@ -166,37 +166,35 @@ local function SyncToGameState(forceSnap)
         return
     end
 
-    if not UnitExists("pet") then
-        hasPet = false
-        mainframe:Show()
+    hasPet = UnitExists("pet") and true or false
+    mainframe:Show()
+
+    if not hasPet then
         UpdateVisual()
         return
     end
 
-    hasPet = true
-    mainframe:Show()
-
     local state = GetPetHappiness and GetPetHappiness() or nil
     local minBand, maxBand = StateBandFromState(state)
-    local now = GetTime and GetTime() or 0
 
-    if minBand and maxBand then
-        local midpoint = (minBand + maxBand) / 2
+    if not (minBand and maxBand) then
+        happinessValue = Clamp(happinessValue, 0, 100)
+        UpdateVisual()
+        return
+    end
 
-        if forceSnap then
-            happinessValue = midpoint
-        else
-            if now < feedGraceUntil then
-                if happinessValue < minBand then
-                    happinessValue = minBand
-                end
-            else
-                if happinessValue < minBand then
-                    happinessValue = (happinessValue * 0.8) + (minBand * 0.4)
-                elseif happinessValue > maxBand then
-                    happinessValue = (happinessValue * 0.85) + (maxBand * 0.15)
-                end
+    if forceSnap then
+        happinessValue = (minBand + maxBand) / 2
+    else
+        local now = GetTime and GetTime() or 0
+        if now < feedGraceUntil then
+            if happinessValue < minBand then
+                happinessValue = minBand
             end
+        elseif happinessValue < minBand then
+            happinessValue = (happinessValue * 0.8) + (minBand * 0.4)
+        elseif happinessValue > maxBand then
+            happinessValue = (happinessValue * 0.85) + (maxBand * 0.15)
         end
     end
 
@@ -205,16 +203,12 @@ local function SyncToGameState(forceSnap)
 end
 
 local function OnFeedDetected()
-    if not hasPet then
-        return
-    end
-
     local now = GetTime and GetTime() or 0
-    if (now - lastFeedEventTime) < 1.5 then
+    if not hasPet or (now - lastFeedEventTime) < 1.5 then
         return
     end
-    lastFeedEventTime = now
 
+    lastFeedEventTime = now
     happinessValue = Clamp(happinessValue + FEED_BOOST, 0, 100)
     feedGraceUntil = now + 10
     UpdateVisual()
@@ -282,12 +276,12 @@ local function InitializeAddon()
     end
 
     mainframe:SetWidth(TurtlePetHappinessDB.width)
-    mainframe:SetHeight(TurtlePetHappinessDB.height + 51)
+    mainframe:SetHeight(TurtlePetHappinessDB.height + 65)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
     happinessBarFrame:SetParent(mainframe)
-    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -20)
+    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -34)
     happinessBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
     happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 4)
 
@@ -361,8 +355,8 @@ local function InitializeAddon()
     petInfoText:SetText("No active pet")
 
     loyaltyInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    loyaltyInfoText:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -6, -6)
-    loyaltyInfoText:SetJustifyH("RIGHT")
+    loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 5, -18)
+    loyaltyInfoText:SetJustifyH("CENTER")
     loyaltyInfoText:SetText("")
 
     mainframe:SetBackdrop({
