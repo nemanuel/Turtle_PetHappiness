@@ -24,6 +24,8 @@ local petInfoText
 local loyaltyInfoText
 local mendPetIconFrame
 local mendPetIconTexture
+local petDietIconFrame
+local petDietIconTexture
 local mendPetSpellIndex
 local lastMendPetScanAt = 0
 local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
@@ -97,6 +99,71 @@ local function UpdateBarColor()
     else
         happinessBar:SetStatusBarColor(0.9, 0.2, 0.2)
     end
+end
+
+local PET_FAMILY_DIET_FALLBACK = {
+    ["Bat"] = "Fruit, Fungus",
+    ["Bear"] = "Bread, Cheese, Fish, Fruit, Fungus, Meat",
+    ["Boar"] = "Bread, Fruit, Fungus",
+    ["Carrion Bird"] = "Meat",
+    ["Cat"] = "Fish, Meat",
+    ["Core Hound"] = "Meat",
+    ["Crab"] = "Fish",
+    ["Crocolisk"] = "Fish, Meat",
+    ["Gorilla"] = "Fruit, Fungus",
+    ["Hyena"] = "Meat",
+    ["Owl"] = "Meat",
+    ["Raptor"] = "Meat",
+    ["Scorpid"] = "Meat",
+    ["Spider"] = "Meat",
+    ["Tallstrider"] = "Fruit, Fungus",
+    ["Turtle"] = "Fish, Fruit",
+    ["Wind Serpent"] = "Bread, Cheese, Fish",
+    ["Wolf"] = "Meat",
+}
+
+local function GetPetDietTooltipText()
+    if not UnitExists("pet") then
+        return "No active pet"
+    end
+
+    if not GetPetFoodTypes then
+        local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
+        return (family and PET_FAMILY_DIET_FALLBACK[family]) or "Unknown"
+    end
+
+    local result = { GetPetFoodTypes() }
+    local foodTypes = nil
+
+    if table.getn(result) == 1 and type(result[1]) == "table" then
+        foodTypes = result[1]
+    else
+        foodTypes = result
+    end
+
+    if type(foodTypes) ~= "table" or table.getn(foodTypes) == 0 then
+        local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
+        return (family and PET_FAMILY_DIET_FALLBACK[family]) or "Unknown"
+    end
+
+    local foods = ""
+    for i = 1, table.getn(foodTypes) do
+        local food = foodTypes[i]
+        if type(food) == "string" and food ~= "" then
+            if foods == "" then
+                foods = food
+            else
+                foods = foods .. ", " .. food
+            end
+        end
+    end
+
+    if foods == "" then
+        local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
+        return (family and PET_FAMILY_DIET_FALLBACK[family]) or "Unknown"
+    end
+
+    return foods
 end
 
 local function RefreshMendPetSpellIndex()
@@ -201,6 +268,14 @@ local function UpdateVisual()
     happinessBar:SetValue(happinessValue)
     UpdateBarColor()
     UpdateMendPetIconVisibility()
+
+    if petDietIconFrame then
+        if UnitExists("pet") then
+            petDietIconFrame:Show()
+        else
+            petDietIconFrame:Hide()
+        end
+    end
 
     local state = GetPetHappiness and GetPetHappiness() or nil
     local stateText = "No Pet"
@@ -490,7 +565,7 @@ local function InitializeAddon()
     loyaltyInfoText:SetText("")
 
     mendPetIconFrame = CreateFrame("Frame", nil, mainframe)
-    mendPetIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -6, -6)
+    mendPetIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -26, -6)
     mendPetIconFrame:SetWidth(16)
     mendPetIconFrame:SetHeight(16)
     mendPetIconFrame:SetFrameStrata("HIGH")
@@ -517,6 +592,36 @@ local function InitializeAddon()
     mendPetIconTexture:SetAllPoints(mendPetIconFrame)
     mendPetIconTexture:SetTexture("Interface\\Icons\\Ability_Hunter_MendPet")
     mendPetIconFrame:Show()
+
+    petDietIconFrame = CreateFrame("Frame", nil, mainframe)
+    petDietIconFrame:SetPoint("LEFT", mendPetIconFrame, "RIGHT", 4, 0)
+    petDietIconFrame:SetWidth(16)
+    petDietIconFrame:SetHeight(16)
+    petDietIconFrame:SetFrameStrata("HIGH")
+    petDietIconFrame:SetFrameLevel(mainframe:GetFrameLevel() + 10)
+    petDietIconFrame:EnableMouse(true)
+
+    petDietIconFrame:SetScript("OnEnter", function()
+        if not GameTooltip then
+            return
+        end
+
+        GameTooltip:SetOwner(petDietIconFrame, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Pet diet")
+        GameTooltip:AddLine(GetPetDietTooltipText(), 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+
+    petDietIconFrame:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
+
+    petDietIconTexture = petDietIconFrame:CreateTexture(nil, "OVERLAY")
+    petDietIconTexture:SetAllPoints(petDietIconFrame)
+    petDietIconTexture:SetTexture("Interface\\Icons\\INV_Misc_Food_15")
+    petDietIconFrame:Show()
 
     mainframe:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
