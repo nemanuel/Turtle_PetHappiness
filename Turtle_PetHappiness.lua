@@ -29,6 +29,13 @@ local elapsedAccumulator = 0
 local initialized = false
 local lastFeedEventTime = 0
 local feedGraceUntil = 0
+local lastHappinessState = nil
+
+local STATE_DECAY_MULTIPLIER = {
+    [1] = 0.9,
+    [2] = 1.0,
+    [3] = 1.1,
+}
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -48,6 +55,21 @@ local function StateBandFromState(state)
         return 0, 33
     end
     return nil, nil
+end
+
+local function GetDynamicDecayRate(state)
+    local rate = DECAY_PER_SECOND
+    local multiplier = STATE_DECAY_MULTIPLIER[state]
+
+    if multiplier then
+        rate = rate * multiplier
+    end
+
+    if UnitAffectingCombat and UnitAffectingCombat("pet") then
+        rate = rate * 1.25
+    end
+
+    return rate
 end
 
 local function SavePosition()
@@ -184,7 +206,13 @@ local function SyncToGameState(forceSnap)
     end
 
     if forceSnap then
-        happinessValue = (minBand + maxBand) / 2
+        if lastHappinessState and state and state < lastHappinessState then
+            happinessValue = maxBand
+        elseif lastHappinessState and state and state > lastHappinessState then
+            happinessValue = minBand
+        else
+            happinessValue = Clamp(happinessValue, minBand, maxBand)
+        end
     else
         local now = GetTime and GetTime() or 0
         if now < feedGraceUntil then
@@ -197,6 +225,8 @@ local function SyncToGameState(forceSnap)
             happinessValue = (happinessValue * 0.85) + (maxBand * 0.15)
         end
     end
+
+    lastHappinessState = state
 
     happinessValue = Clamp(happinessValue, 0, 100)
     UpdateVisual()
@@ -461,7 +491,9 @@ mainframe:SetScript("OnUpdate", function(_, elapsed)
     local delta = elapsedAccumulator
     elapsedAccumulator = 0
 
-    happinessValue = happinessValue - (DECAY_PER_SECOND * delta)
+    local state = GetPetHappiness and GetPetHappiness() or nil
+    local decayRate = GetDynamicDecayRate(state)
+    happinessValue = happinessValue - (decayRate * delta)
 
     happinessValue = Clamp(happinessValue, 0, 100)
     UpdateVisual()
