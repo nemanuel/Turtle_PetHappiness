@@ -24,6 +24,9 @@ local petInfoText
 local loyaltyInfoText
 local mendPetIconFrame
 local mendPetIconTexture
+local mendPetSpellIndex
+local lastMendPetScanAt = 0
+local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
 
 local happinessValue = 100
 local hasPet = false
@@ -96,6 +99,100 @@ local function UpdateBarColor()
     end
 end
 
+local function RefreshMendPetSpellIndex()
+    local now = GetTime and GetTime() or 0
+    if mendPetSpellIndex and (now - lastMendPetScanAt) < 10 then
+        return
+    end
+
+    mendPetSpellIndex = nil
+    lastMendPetScanAt = now
+
+    if not GetSpellName then
+        return
+    end
+
+    local index = 1
+    while true do
+        local spellName = GetSpellName(index, BOOKTYPE_SPELL_CONST)
+        if not spellName then
+            break
+        end
+
+        local spellTexture = GetSpellTexture and GetSpellTexture(index, BOOKTYPE_SPELL_CONST) or ""
+        local lowerName = string.lower(spellName)
+        local lowerTexture = string.lower(spellTexture)
+
+        if string.find(lowerName, "mend pet", 1, true)
+            or string.find(lowerTexture, "ability_hunter_mendpet", 1, true) then
+            mendPetSpellIndex = index
+            return
+        end
+
+        index = index + 1
+        if index > 512 then
+            break
+        end
+    end
+end
+
+local function UpdateMendPetIconVisibility()
+    if not mendPetIconFrame then
+        return
+    end
+
+    if not UnitExists("pet") then
+        mendPetIconFrame:Hide()
+        return
+    end
+
+    local inRange = nil
+
+    RefreshMendPetSpellIndex()
+
+    if IsSpellInRange then
+        if mendPetSpellIndex then
+            inRange = IsSpellInRange(mendPetSpellIndex, BOOKTYPE_SPELL_CONST, "pet")
+            if inRange == nil and GetSpellName then
+                local spellName = GetSpellName(mendPetSpellIndex, BOOKTYPE_SPELL_CONST)
+                if spellName then
+                    inRange = IsSpellInRange(spellName, "pet")
+                end
+            end
+        end
+
+        if inRange == nil then
+            inRange = IsSpellInRange("Mend Pet", "pet")
+        end
+    end
+
+    if inRange == nil and CheckInteractDistance then
+        local near = false
+        local gotDistanceResult = false
+
+        for index = 1, 4 do
+            local distanceCheck = CheckInteractDistance("pet", index)
+            if distanceCheck ~= nil then
+                gotDistanceResult = true
+            end
+            if distanceCheck then
+                near = true
+                break
+            end
+        end
+
+        if gotDistanceResult then
+            inRange = near and 1 or 0
+        end
+    end
+
+    if inRange == 1 then
+        mendPetIconFrame:Show()
+    else
+        mendPetIconFrame:Hide()
+    end
+end
+
 local function UpdateVisual()
     if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or not loyaltyInfoText then
         return
@@ -103,6 +200,7 @@ local function UpdateVisual()
 
     happinessBar:SetValue(happinessValue)
     UpdateBarColor()
+    UpdateMendPetIconVisibility()
 
     local state = GetPetHappiness and GetPetHappiness() or nil
     local stateText = "No Pet"
