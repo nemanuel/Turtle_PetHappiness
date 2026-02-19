@@ -22,6 +22,8 @@ local petXpBar
 local petXpBarText
 local petInfoText
 local loyaltyInfoText
+local mendPetIconFrame
+local mendPetIconTexture
 
 local happinessValue = 100
 local hasPet = false
@@ -388,6 +390,18 @@ local function InitializeAddon()
     loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 5, -18)
     loyaltyInfoText:SetJustifyH("CENTER")
     loyaltyInfoText:SetText("")
+
+    mendPetIconFrame = CreateFrame("Frame", nil, mainframe)
+    mendPetIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -6, -6)
+    mendPetIconFrame:SetWidth(16)
+    mendPetIconFrame:SetHeight(16)
+    mendPetIconFrame:SetFrameStrata("HIGH")
+    mendPetIconFrame:SetFrameLevel(mainframe:GetFrameLevel() + 10)
+
+    mendPetIconTexture = mendPetIconFrame:CreateTexture(nil, "OVERLAY")
+    mendPetIconTexture:SetAllPoints(mendPetIconFrame)
+    mendPetIconTexture:SetTexture("Interface\\Icons\\Ability_Hunter_MendPet")
+    mendPetIconFrame:Show()
 
     mainframe:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
