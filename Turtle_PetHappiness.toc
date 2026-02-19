@@ -1,0 +1,9 @@
+## Interface: 11200
+## Title: Turtle Pet Happiness
+## Notes: Smooth happiness meter for hunter pets (Turtle WoW/Vanilla)
+## Author: Chromag
+## Version: 0.1.0
+## LoadOnDemand: 0
+## SavedVariables: TurtlePetHappinessDB
+
+Turtle_PetHappiness.lua

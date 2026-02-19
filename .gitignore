@@ -1,0 +1,35 @@
+# OS / System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Lua / WoW build artifacts
+*.luac
+
+# Addon packaging / release
+dist/
+build/
+release/
+*.zip
+
+# Logs & temp files
+*.log
+*.tmp
+
+# CurseForge / WowUp tools
+.wowup/
+.cfmeta/
+.pkgmeta
+
+# Test / local config
+.env
+.env.*
