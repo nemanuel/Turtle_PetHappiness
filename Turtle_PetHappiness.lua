@@ -310,7 +310,7 @@ local function InitializeAddon()
 
     happinessBarText = happinessBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     happinessBarText:SetParent(happinessBar)
-    happinessBarText:SetPoint("LEFT", happinessBar, "LEFT", 2, 0)
+    happinessBarText:SetPoint("CENTER", happinessBar, "CENTER", 0, 0)
     happinessBarText:SetJustifyH("CENTER")
 
     petXpBarFrame = CreateFrame("Frame", nil, mainframe)
@@ -345,7 +345,7 @@ local function InitializeAddon()
 
     petXpBarText = petXpBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     petXpBarText:SetParent(petXpBar)
-    petXpBarText:SetPoint("LEFT", petXpBar, "LEFT", 2, 0)
+    petXpBarText:SetPoint("CENTER", petXpBar, "CENTER", 0, 0)
     petXpBarText:SetJustifyH("CENTER")
     petXpBarText:SetText("XP N/A")
 
