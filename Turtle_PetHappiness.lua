@@ -495,6 +495,23 @@ local function InitializeAddon()
     mendPetIconFrame:SetHeight(16)
     mendPetIconFrame:SetFrameStrata("HIGH")
     mendPetIconFrame:SetFrameLevel(mainframe:GetFrameLevel() + 10)
+    mendPetIconFrame:EnableMouse(true)
+
+    mendPetIconFrame:SetScript("OnEnter", function()
+        if not GameTooltip then
+            return
+        end
+
+        GameTooltip:SetOwner(mendPetIconFrame, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Pet in healing range")
+        GameTooltip:Show()
+    end)
+
+    mendPetIconFrame:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
 
     mendPetIconTexture = mendPetIconFrame:CreateTexture(nil, "OVERLAY")
     mendPetIconTexture:SetAllPoints(mendPetIconFrame)
