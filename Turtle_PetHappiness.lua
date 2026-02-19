@@ -10,15 +10,17 @@ local DEFAULTS = {
     value = 100,
 }
 
-local DECAY_PER_SECOND = 0.02
+local DECAY_PER_SECOND = 0.06
 local FEED_BOOST = 25
 
-local happinessBarFrame = CreateFrame("Frame", "TurtlePetHappinessFrame", UIParent)
+local mainframe = CreateFrame("Frame", "TurtlePetHappinessFrame", UIParent)
+local happinessBarFrame
 local happinessBar
 local happinessBarText
+local petInfoText
+local loyaltyInfoText
 
 local happinessValue = 100
-local stateTarget = 100
 local hasPet = false
 local elapsedAccumulator = 0
 local initialized = false
@@ -34,27 +36,27 @@ local function Clamp(value, minVal, maxVal)
     return value
 end
 
-local function BaseValueFromState(state)
+local function StateBandFromState(state)
     if state == 3 then
-        return 83
+        return 67, 100
     elseif state == 2 then
-        return 50
+        return 34, 66
     elseif state == 1 then
-        return 17
+        return 0, 33
     end
-    return nil
+    return nil, nil
 end
 
 local function SavePosition()
-    local point, _, _, x, y = happinessBarFrame:GetPoint(1)
+    local point, _, _, x, y = mainframe:GetPoint(1)
     TurtlePetHappinessDB.point = point
     TurtlePetHappinessDB.x = x
     TurtlePetHappinessDB.y = y
 end
 
 local function ApplyPosition()
-    happinessBarFrame:ClearAllPoints()
-    happinessBarFrame:SetPoint(TurtlePetHappinessDB.point, UIParent, TurtlePetHappinessDB.point, TurtlePetHappinessDB.x, TurtlePetHappinessDB.y)
+    mainframe:ClearAllPoints()
+    mainframe:SetPoint(TurtlePetHappinessDB.point, UIParent, TurtlePetHappinessDB.point, TurtlePetHappinessDB.x, TurtlePetHappinessDB.y)
 end
 
 local function UpdateBarColor()
@@ -68,7 +70,7 @@ local function UpdateBarColor()
 end
 
 local function UpdateVisual()
-    if not happinessBar or not happinessBarText then
+    if not happinessBar or not happinessBarText or not petInfoText or not loyaltyInfoText then
         return
     end
 
@@ -85,6 +87,56 @@ local function UpdateVisual()
         stateText = "Unhappy"
     end
 
+    if UnitExists("pet") then
+        local petLevel = UnitLevel("pet")
+        local petFamily = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
+        local loyaltyLevelRaw, loyaltyNameRaw = nil, nil
+        local loyaltyLevel = nil
+        local loyaltyName = nil
+
+        if GetPetLoyalty then
+            loyaltyLevelRaw, loyaltyNameRaw = GetPetLoyalty()
+        end
+
+        if type(loyaltyLevelRaw) == "number" then
+            loyaltyLevel = loyaltyLevelRaw
+            loyaltyName = loyaltyNameRaw
+        elseif type(loyaltyNameRaw) == "number" then
+            loyaltyLevel = loyaltyNameRaw
+            loyaltyName = loyaltyLevelRaw
+        else
+            loyaltyLevel = tonumber(loyaltyLevelRaw) or tonumber(loyaltyNameRaw)
+            loyaltyName = loyaltyNameRaw or loyaltyLevelRaw
+        end
+
+        if loyaltyName and type(loyaltyName) ~= "string" then
+            loyaltyName = tostring(loyaltyName)
+        end
+
+        if not petFamily or petFamily == "" then
+            petFamily = "Unknown"
+        end
+
+        if petLevel and petLevel > 0 then
+            petInfoText:SetText(string.format("Level %d %s", petLevel, petFamily))
+        else
+            petInfoText:SetText(string.format("Level ? %s", petFamily))
+        end
+
+        if loyaltyLevel and loyaltyName and loyaltyName ~= "" then
+            loyaltyInfoText:SetText(string.format("(Loyalty Level %d) %s", loyaltyLevel, loyaltyName))
+        elseif loyaltyLevel then
+            loyaltyInfoText:SetText(string.format("(Loyalty Level %d)", loyaltyLevel))
+        elseif loyaltyName and loyaltyName ~= "" then
+            loyaltyInfoText:SetText(string.format("%s", loyaltyName))
+        else
+            loyaltyInfoText:SetText("(Loyalty Unknown)")
+        end
+    else
+        petInfoText:SetText("No active pet")
+        loyaltyInfoText:SetText("")
+    end
+
     happinessBarText:SetText(string.format("Happiness %d%% (%s)", happinessValue, stateText))
 end
 
@@ -95,31 +147,34 @@ local function SyncToGameState(forceSnap)
 
     if not UnitExists("pet") then
         hasPet = false
-        happinessBarFrame:Show()
-        stateTarget = nil
+        mainframe:Show()
         UpdateVisual()
         return
     end
 
     hasPet = true
-    happinessBarFrame:Show()
+    mainframe:Show()
 
     local state = GetPetHappiness and GetPetHappiness() or nil
-    local target = BaseValueFromState(state)
+    local minBand, maxBand = StateBandFromState(state)
     local now = GetTime and GetTime() or 0
 
-    if target then
+    if minBand and maxBand then
+        local midpoint = (minBand + maxBand) / 2
+
         if forceSnap then
-            stateTarget = target
-            happinessValue = target
+            happinessValue = midpoint
         else
-            if now < feedGraceUntil and target < happinessValue then
-                if not stateTarget or target > stateTarget then
-                    stateTarget = target
+            if now < feedGraceUntil then
+                if happinessValue < minBand then
+                    happinessValue = minBand
                 end
             else
-                stateTarget = target
-                happinessValue = (happinessValue * 0.8) + (stateTarget * 0.2)
+                if happinessValue < minBand then
+                    happinessValue = (happinessValue * 0.8) + (minBand * 0.4)
+                elseif happinessValue > maxBand then
+                    happinessValue = (happinessValue * 0.85) + (maxBand * 0.15)
+                end
             end
         end
     end
@@ -140,9 +195,6 @@ local function OnFeedDetected()
     lastFeedEventTime = now
 
     happinessValue = Clamp(happinessValue + FEED_BOOST, 0, 100)
-    if not stateTarget or happinessValue > stateTarget then
-        stateTarget = happinessValue
-    end
     feedGraceUntil = now + 10
     UpdateVisual()
 end
@@ -166,12 +218,24 @@ end
 
 local function ToggleLock(locked)
     TurtlePetHappinessDB.locked = locked
-    happinessBarFrame:EnableMouse(not locked)
+    mainframe:EnableMouse(not locked)
 
     if locked then
         happinessBarText:SetTextColor(1, 1, 1)
+        if petInfoText then
+            petInfoText:SetTextColor(1, 1, 1)
+        end
+        if loyaltyInfoText then
+            loyaltyInfoText:SetTextColor(1, 1, 1)
+        end
     else
         happinessBarText:SetTextColor(0.8, 0.95, 1)
+        if petInfoText then
+            petInfoText:SetTextColor(0.8, 0.95, 1)
+        end
+        if loyaltyInfoText then
+            loyaltyInfoText:SetTextColor(0.8, 0.95, 1)
+        end
     end
 end
 
@@ -190,26 +254,15 @@ local function InitializeAddon()
         end
     end
 
-    happinessBarFrame:SetWidth(TurtlePetHappinessDB.width)
-    happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 2)
-    happinessBarFrame:SetFrameStrata("MEDIUM")
+    mainframe:SetWidth(TurtlePetHappinessDB.width)
+    mainframe:SetHeight(TurtlePetHappinessDB.height + 28)
+    mainframe:SetFrameStrata("MEDIUM")
 
-    happinessBar = CreateFrame("StatusBar", nil, happinessBarFrame)
-    happinessBar:SetParent(happinessBarFrame)
-    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 3, -3)
-    happinessBar:SetPoint("TOPRIGHT", happinessBarFrame, "TOPRIGHT", -4, 0)
-    happinessBar:SetHeight(12)
-    happinessBar:SetMinMaxValues(0, 100)
-    happinessBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-
-    happinessBar.bg = happinessBar:CreateTexture(nil, "BACKGROUND")
-    happinessBar.bg:SetAllPoints(happinessBar)
-    happinessBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    happinessBar.bg:SetVertexColor(0.15, 0.15, 0.15, 0.9)
-
-    happinessBarText = happinessBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    happinessBarText:SetParent(happinessBar)
-    happinessBarText:SetPoint("TOPLEFT", happinessBar, "TOPLEFT", 2, -1)
+    happinessBarFrame = CreateFrame("Frame", nil, mainframe)
+    happinessBarFrame:SetParent(mainframe)
+    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -20)
+    happinessBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
+    happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 3)
 
     happinessBarFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -221,21 +274,59 @@ local function InitializeAddon()
     })
     happinessBarFrame:SetBackdropColor(0, 0, 0, 0.5)
 
-    happinessBarFrame:RegisterForDrag("LeftButton")
-    happinessBarFrame:SetMovable(true)
-    happinessBarFrame:SetClampedToScreen(true)
-    happinessBarFrame:SetScript("OnDragStart", function()
+    happinessBar = CreateFrame("StatusBar", nil, happinessBarFrame)
+    happinessBar:SetParent(happinessBarFrame)
+    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 3, -3)
+    happinessBar:SetPoint("TOPRIGHT", happinessBarFrame, "TOPRIGHT", -4, 0)
+    happinessBar:SetHeight(13)
+    happinessBar:SetMinMaxValues(0, 100)
+    happinessBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+
+    happinessBar.bg = happinessBar:CreateTexture(nil, "BACKGROUND")
+    happinessBar.bg:SetAllPoints(happinessBar)
+    happinessBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    happinessBar.bg:SetVertexColor(0.15, 0.15, 0.15, 0.9)
+
+    happinessBarText = happinessBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    happinessBarText:SetParent(happinessBar)
+    happinessBarText:SetPoint("LEFT", happinessBar, "LEFT", 2, 0)
+    happinessBarText:SetJustifyH("CENTER")
+
+    petInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -6)
+    petInfoText:SetJustifyH("LEFT")
+    petInfoText:SetText("No active pet")
+
+    loyaltyInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    loyaltyInfoText:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -6, -6)
+    loyaltyInfoText:SetJustifyH("RIGHT")
+    loyaltyInfoText:SetText("")
+
+    mainframe:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 8,
+        edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    mainframe:SetBackdropColor(0, 0, 0, 0.5)
+
+    mainframe:RegisterForDrag("LeftButton")
+    mainframe:SetMovable(true)
+    mainframe:SetClampedToScreen(true)
+    mainframe:SetScript("OnDragStart", function()
         if not TurtlePetHappinessDB.locked then
-            happinessBarFrame:StartMoving()
+            mainframe:StartMoving()
         end
     end)
-    happinessBarFrame:SetScript("OnDragStop", function()
-        happinessBarFrame:StopMovingOrSizing()
+    mainframe:SetScript("OnDragStop", function()
+        mainframe:StopMovingOrSizing()
         SavePosition()
     end)
 
     ApplyPosition()
-    happinessBarFrame:Show()
+    mainframe:Show()
     happinessValue = Clamp(TurtlePetHappinessDB.value or 100, 0, 100)
     ToggleLock(TurtlePetHappinessDB.locked)
 
@@ -260,7 +351,7 @@ local function InitializeAddon()
             TurtlePetHappinessDB.x = DEFAULTS.x
             TurtlePetHappinessDB.y = DEFAULTS.y
             ApplyPosition()
-            happinessBarFrame:Show()
+            mainframe:Show()
             print("Turtle Pet Happiness: shown at center")
         else
             print("Turtle Pet Happiness commands: /tph lock, /tph unlock, /tph reset, /tph show")
@@ -272,7 +363,7 @@ local function InitializeAddon()
     SyncToGameState(true)
 end
 
-happinessBarFrame:SetScript("OnEvent", function(self, evt, a1)
+mainframe:SetScript("OnEvent", function(self, evt, a1)
     evt = evt or event
     a1 = a1 or arg1
 
@@ -298,7 +389,7 @@ happinessBarFrame:SetScript("OnEvent", function(self, evt, a1)
     end
 end)
 
-happinessBarFrame:SetScript("OnUpdate", function(_, elapsed)
+mainframe:SetScript("OnUpdate", function(_, elapsed)
     elapsed = elapsed or arg1 or 0
 
     if not hasPet then
@@ -315,25 +406,21 @@ happinessBarFrame:SetScript("OnUpdate", function(_, elapsed)
 
     happinessValue = happinessValue - (DECAY_PER_SECOND * delta)
 
-    if stateTarget then
-        happinessValue = (happinessValue * 0.95) + (stateTarget * 0.05)
-    end
-
     happinessValue = Clamp(happinessValue, 0, 100)
     UpdateVisual()
 end)
 
-happinessBarFrame:RegisterEvent("ADDON_LOADED")
-happinessBarFrame:RegisterEvent("PLAYER_LOGIN")
-happinessBarFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-happinessBarFrame:RegisterEvent("UNIT_HAPPINESS")
-happinessBarFrame:RegisterEvent("UNIT_PET")
-happinessBarFrame:RegisterEvent("PET_BAR_UPDATE")
-happinessBarFrame:RegisterEvent("PET_UI_UPDATE")
-happinessBarFrame:RegisterEvent("CHAT_MSG_SPELL_SELF_BUFF")
-happinessBarFrame:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS")
+mainframe:RegisterEvent("ADDON_LOADED")
+mainframe:RegisterEvent("PLAYER_LOGIN")
+mainframe:RegisterEvent("PLAYER_ENTERING_WORLD")
+mainframe:RegisterEvent("UNIT_HAPPINESS")
+mainframe:RegisterEvent("UNIT_PET")
+mainframe:RegisterEvent("PET_BAR_UPDATE")
+mainframe:RegisterEvent("PET_UI_UPDATE")
+mainframe:RegisterEvent("CHAT_MSG_SPELL_SELF_BUFF")
+mainframe:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS")
 
-happinessBarFrame:SetScript("OnHide", function()
+mainframe:SetScript("OnHide", function()
     if TurtlePetHappinessDB then
         TurtlePetHappinessDB.value = happinessValue
     end
