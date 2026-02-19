@@ -17,6 +17,9 @@ local mainframe = CreateFrame("Frame", "TurtlePetHappinessFrame", UIParent)
 local happinessBarFrame
 local happinessBar
 local happinessBarText
+local petXpBarFrame
+local petXpBar
+local petXpBarText
 local petInfoText
 local loyaltyInfoText
 
@@ -70,7 +73,7 @@ local function UpdateBarColor()
 end
 
 local function UpdateVisual()
-    if not happinessBar or not happinessBarText or not petInfoText or not loyaltyInfoText then
+    if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or not loyaltyInfoText then
         return
     end
 
@@ -90,12 +93,17 @@ local function UpdateVisual()
     if UnitExists("pet") then
         local petLevel = UnitLevel("pet")
         local petFamily = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
+        local petXP, petXPMax = nil, nil
         local loyaltyLevelRaw, loyaltyNameRaw = nil, nil
         local loyaltyLevel = nil
         local loyaltyName = nil
 
         if GetPetLoyalty then
             loyaltyLevelRaw, loyaltyNameRaw = GetPetLoyalty()
+        end
+
+        if GetPetExperience then
+            petXP, petXPMax = GetPetExperience()
         end
 
         if type(loyaltyLevelRaw) == "number" then
@@ -132,9 +140,22 @@ local function UpdateVisual()
         else
             loyaltyInfoText:SetText("(Loyalty Unknown)")
         end
+
+        if petXP and petXPMax and petXPMax > 0 then
+            petXpBar:SetMinMaxValues(0, petXPMax)
+            petXpBar:SetValue(petXP)
+            petXpBarText:SetText(string.format("XP %d/%d", petXP, petXPMax))
+        else
+            petXpBar:SetMinMaxValues(0, 100)
+            petXpBar:SetValue(0)
+            petXpBarText:SetText("XP N/A")
+        end
     else
         petInfoText:SetText("No active pet")
         loyaltyInfoText:SetText("")
+        petXpBar:SetMinMaxValues(0, 100)
+        petXpBar:SetValue(0)
+        petXpBarText:SetText("XP N/A")
     end
 
     happinessBarText:SetText(string.format("Happiness %d%% (%s)", happinessValue, stateText))
@@ -222,6 +243,9 @@ local function ToggleLock(locked)
 
     if locked then
         happinessBarText:SetTextColor(1, 1, 1)
+        if petXpBarText then
+            petXpBarText:SetTextColor(1, 1, 1)
+        end
         if petInfoText then
             petInfoText:SetTextColor(1, 1, 1)
         end
@@ -230,6 +254,9 @@ local function ToggleLock(locked)
         end
     else
         happinessBarText:SetTextColor(0.8, 0.95, 1)
+        if petXpBarText then
+            petXpBarText:SetTextColor(0.8, 0.95, 1)
+        end
         if petInfoText then
             petInfoText:SetTextColor(0.8, 0.95, 1)
         end
@@ -255,14 +282,14 @@ local function InitializeAddon()
     end
 
     mainframe:SetWidth(TurtlePetHappinessDB.width)
-    mainframe:SetHeight(TurtlePetHappinessDB.height + 28)
+    mainframe:SetHeight(TurtlePetHappinessDB.height + 51)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
     happinessBarFrame:SetParent(mainframe)
     happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -20)
     happinessBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
-    happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 3)
+    happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 4)
 
     happinessBarFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -276,7 +303,7 @@ local function InitializeAddon()
 
     happinessBar = CreateFrame("StatusBar", nil, happinessBarFrame)
     happinessBar:SetParent(happinessBarFrame)
-    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 3, -3)
+    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 3, -4)
     happinessBar:SetPoint("TOPRIGHT", happinessBarFrame, "TOPRIGHT", -4, 0)
     happinessBar:SetHeight(13)
     happinessBar:SetMinMaxValues(0, 100)
@@ -291,6 +318,42 @@ local function InitializeAddon()
     happinessBarText:SetParent(happinessBar)
     happinessBarText:SetPoint("LEFT", happinessBar, "LEFT", 2, 0)
     happinessBarText:SetJustifyH("CENTER")
+
+    petXpBarFrame = CreateFrame("Frame", nil, mainframe)
+    petXpBarFrame:SetParent(mainframe)
+    petXpBarFrame:SetPoint("TOPLEFT", happinessBarFrame, "BOTTOMLEFT", 0, -2)
+    petXpBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
+    petXpBarFrame:SetHeight(TurtlePetHappinessDB.height + 4)
+
+    petXpBarFrame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 8,
+        edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    petXpBarFrame:SetBackdropColor(0, 0, 0, 0.5)
+
+    petXpBar = CreateFrame("StatusBar", nil, petXpBarFrame)
+    petXpBar:SetParent(petXpBarFrame)
+    petXpBar:SetPoint("TOPLEFT", petXpBarFrame, "TOPLEFT", 3, -4)
+    petXpBar:SetPoint("TOPRIGHT", petXpBarFrame, "TOPRIGHT", -4, 0)
+    petXpBar:SetHeight(13)
+    petXpBar:SetMinMaxValues(0, 100)
+    petXpBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    petXpBar:SetStatusBarColor(0.25, 0.45, 0.9)
+
+    petXpBar.bg = petXpBar:CreateTexture(nil, "BACKGROUND")
+    petXpBar.bg:SetAllPoints(petXpBar)
+    petXpBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    petXpBar.bg:SetVertexColor(0.15, 0.15, 0.15, 0.9)
+
+    petXpBarText = petXpBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    petXpBarText:SetParent(petXpBar)
+    petXpBarText:SetPoint("LEFT", petXpBar, "LEFT", 2, 0)
+    petXpBarText:SetJustifyH("CENTER")
+    petXpBarText:SetText("XP N/A")
 
     petInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -6)
