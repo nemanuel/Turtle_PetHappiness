@@ -306,14 +306,14 @@ local function InitializeAddon()
     end
 
     mainframe:SetWidth(TurtlePetHappinessDB.width)
-    mainframe:SetHeight(TurtlePetHappinessDB.height + 65)
+    mainframe:SetHeight(TurtlePetHappinessDB.height + 66)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
     happinessBarFrame:SetParent(mainframe)
     happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -34)
     happinessBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
-    happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 4)
+    happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 5)
 
     happinessBarFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -327,7 +327,7 @@ local function InitializeAddon()
 
     happinessBar = CreateFrame("StatusBar", nil, happinessBarFrame)
     happinessBar:SetParent(happinessBarFrame)
-    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 3, -4)
+    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 4, -4)
     happinessBar:SetPoint("TOPRIGHT", happinessBarFrame, "TOPRIGHT", -4, 0)
     happinessBar:SetHeight(13)
     happinessBar:SetMinMaxValues(0, 100)
@@ -340,14 +340,14 @@ local function InitializeAddon()
 
     happinessBarText = happinessBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     happinessBarText:SetParent(happinessBar)
-    happinessBarText:SetPoint("CENTER", happinessBar, "CENTER", 0, 0)
+    happinessBarText:SetPoint("CENTER", happinessBar, "CENTER", 0, 1)
     happinessBarText:SetJustifyH("CENTER")
 
     petXpBarFrame = CreateFrame("Frame", nil, mainframe)
     petXpBarFrame:SetParent(mainframe)
-    petXpBarFrame:SetPoint("TOPLEFT", happinessBarFrame, "BOTTOMLEFT", 0, -2)
+    petXpBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -56)
     petXpBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
-    petXpBarFrame:SetHeight(TurtlePetHappinessDB.height + 4)
+    petXpBarFrame:SetHeight(TurtlePetHappinessDB.height + 5)
 
     petXpBarFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -361,7 +361,7 @@ local function InitializeAddon()
 
     petXpBar = CreateFrame("StatusBar", nil, petXpBarFrame)
     petXpBar:SetParent(petXpBarFrame)
-    petXpBar:SetPoint("TOPLEFT", petXpBarFrame, "TOPLEFT", 3, -4)
+    petXpBar:SetPoint("TOPLEFT", petXpBarFrame, "TOPLEFT", 4, -4)
     petXpBar:SetPoint("TOPRIGHT", petXpBarFrame, "TOPRIGHT", -4, 0)
     petXpBar:SetHeight(13)
     petXpBar:SetMinMaxValues(0, 100)
@@ -375,7 +375,7 @@ local function InitializeAddon()
 
     petXpBarText = petXpBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     petXpBarText:SetParent(petXpBar)
-    petXpBarText:SetPoint("CENTER", petXpBar, "CENTER", 0, 0)
+    petXpBarText:SetPoint("CENTER", petXpBar, "CENTER", 0, 1)
     petXpBarText:SetJustifyH("CENTER")
     petXpBarText:SetText("XP N/A")
 
