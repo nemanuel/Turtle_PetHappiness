@@ -32,7 +32,6 @@ local hasPet = false
 local elapsedAccumulator = 0
 local initialized = false
 local mendPetInRangeFrames = 0
-local mendPetSuppressUntil = 0
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -177,7 +176,6 @@ local function UpdateMendPetIconVisibility()
     if not UnitExists("pet") then
         mendPetIconFrame:Hide()
         mendPetInRangeFrames = 0
-        mendPetSuppressUntil = 0
         return
     end
 
@@ -222,26 +220,20 @@ local function UpdateMendPetIconVisibility()
     end
 
     -- IsSpellInRange includes bounding radii of both units, reporting "in range"
-    -- slightly before the server's strict cast threshold. Requiring 20 consecutive
-    -- in-range readings (~2 s) ensures the player or pet has moved far enough past
-    -- the inflated boundary to be within actual Mend Pet cast range.
+    -- slightly before the server's strict cast threshold. Requiring 30 consecutive
+    -- in-range readings (~3 s at the 0.1 s tick) ensures the player has moved
+    -- far enough past the inflated boundary to be within actual Mend Pet cast
+    -- range at any realistic movement speed.
+    -- After a confirmed cast failure (SPELLCAST_FAILED), the counter is set to -30
+    -- so that 60 consecutive ticks (~6 s / ~15 y at walk speed) are needed before
+    -- the icon reappears, preventing it from cycling back on at the wrong position.
     if inRange == 1 then
-        mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 20)
+        mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 30)
     else
         mendPetInRangeFrames = 0
     end
 
-    -- After a confirmed cast failure, suppress the icon for 2 s regardless of
-    -- what IsSpellInRange reports. The counter keeps accumulating during suppression
-    -- so the icon reappears immediately once suppression ends if the player has
-    -- already moved past the true cast range threshold.
-    local now = GetTime and GetTime() or 0
-    if now < mendPetSuppressUntil then
-        mendPetIconFrame:Hide()
-        return
-    end
-
-    if mendPetInRangeFrames >= 20 then
+    if mendPetInRangeFrames >= 30 then
         mendPetIconFrame:Show()
     else
         mendPetIconFrame:Hide()
@@ -643,12 +635,11 @@ mainframe:SetScript("OnEvent", function(self, evt, a1)
         SyncToGameState(false)
     elseif evt == "SPELLCAST_FAILED" then
         -- When a Mend Pet cast is rejected by the server (e.g. "Out of Range"),
-        -- reset the range counter and suppress the icon for 2 s so the player
-        -- has time to move clearly past the true cast threshold before the
-        -- indicator reappears.
+        -- drive the counter deep negative so the icon cannot reappear until the
+        -- player has been continuously inside the inflated zone for ~6 s (~15 y
+        -- at walk speed), which places them well within the true 45 y threshold.
         if a1 and string.lower(tostring(a1)) == "mend pet" then
-            mendPetInRangeFrames = 0
-            mendPetSuppressUntil = (GetTime and GetTime() or 0) + 2.0
+            mendPetInRangeFrames = -30
         end
     end
 end)
