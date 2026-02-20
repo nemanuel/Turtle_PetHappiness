@@ -25,6 +25,8 @@ local petDietIconFrame
 local petDietIconTexture
 local mendPetSpellIndex
 local lastMendPetScanAt = 0
+local mendPetActionSlot = nil
+local lastMendPetActionScanAt = 0
 local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
 
 local happinessValue = 0
@@ -168,6 +170,29 @@ local function RefreshMendPetSpellIndex()
     end
 end
 
+local function RefreshMendPetActionSlot()
+    local now = GetTime and GetTime() or 0
+    if mendPetActionSlot and (now - lastMendPetActionScanAt) < 10 then
+        return
+    end
+
+    mendPetActionSlot = nil
+    lastMendPetActionScanAt = now
+
+    if not GetActionTexture then
+        return
+    end
+
+    -- vanilla WoW has 120 action slots (6 main bars + stance/bonus bars)
+    for slot = 1, 120 do
+        local texture = GetActionTexture(slot)
+        if texture and string.find(string.lower(texture), "ability_hunter_mendpet", 1, true) then
+            mendPetActionSlot = slot
+            return
+        end
+    end
+end
+
 local function UpdateMendPetIconVisibility()
     if not mendPetIconFrame then
         return
@@ -180,52 +205,72 @@ local function UpdateMendPetIconVisibility()
     end
 
     local inRange = nil
+    local fromActionSlot = false
 
-    RefreshMendPetSpellIndex()
+    RefreshMendPetActionSlot()
 
-    if IsSpellInRange then
-        if mendPetSpellIndex then
-            inRange = IsSpellInRange(mendPetSpellIndex, BOOKTYPE_SPELL_CONST, "pet")
-            if inRange == nil and GetSpellName then
-                local spellName = GetSpellName(mendPetSpellIndex, BOOKTYPE_SPELL_CONST)
-                if spellName then
-                    inRange = IsSpellInRange(spellName, "pet")
-                end
-            end
-        end
-
-        if inRange == nil then
-            inRange = IsSpellInRange("Mend Pet", "pet")
+    if mendPetActionSlot and IsActionInRange then
+        local result = IsActionInRange(mendPetActionSlot)
+        if result ~= nil then
+            inRange = result
+            fromActionSlot = true
         end
     end
 
-    if inRange == nil and CheckInteractDistance then
-        local near = false
-        local gotDistanceResult = false
+    if not fromActionSlot then
+        RefreshMendPetSpellIndex()
 
-        for index = 1, 4 do
-            local distanceCheck = CheckInteractDistance("pet", index)
-            if distanceCheck ~= nil then
-                gotDistanceResult = true
+        if IsSpellInRange then
+            if mendPetSpellIndex then
+                inRange = IsSpellInRange(mendPetSpellIndex, BOOKTYPE_SPELL_CONST, "pet")
+                if inRange == nil and GetSpellName then
+                    local spellName = GetSpellName(mendPetSpellIndex, BOOKTYPE_SPELL_CONST)
+                    if spellName then
+                        inRange = IsSpellInRange(spellName, "pet")
+                    end
+                end
             end
-            if distanceCheck then
-                near = true
-                break
+
+            if inRange == nil then
+                inRange = IsSpellInRange("Mend Pet", "pet")
             end
         end
 
-        if gotDistanceResult then
-            inRange = near and 1 or 0
+        if inRange == nil and CheckInteractDistance then
+            local near = false
+            local gotDistanceResult = false
+
+            for index = 1, 4 do
+                local distanceCheck = CheckInteractDistance("pet", index)
+                if distanceCheck ~= nil then
+                    gotDistanceResult = true
+                end
+                if distanceCheck then
+                    near = true
+                    break
+                end
+            end
+
+            if gotDistanceResult then
+                inRange = near and 1 or 0
+            end
         end
+
+        if inRange == 1 then
+            mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 3)
+        else
+            mendPetInRangeFrames = 0
+        end
+
+        if mendPetInRangeFrames >= 3 then
+            mendPetIconFrame:Show()
+        else
+            mendPetIconFrame:Hide()
+        end
+        return
     end
 
     if inRange == 1 then
-        mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 3)
-    else
-        mendPetInRangeFrames = 0
-    end
-
-    if mendPetInRangeFrames >= 3 then
         mendPetIconFrame:Show()
     else
         mendPetIconFrame:Hide()
