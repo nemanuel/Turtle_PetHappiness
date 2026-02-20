@@ -19,17 +19,11 @@ local petXpBar
 local petXpBarText
 local petInfoText
 local loyaltyInfoText
-local mendPetIconFrame
-local mendPetIconTexture
 local petDietIconFrame
 local petDietIconTexture
-local mendPetSpellIndex
-local lastMendPetScanAt = 0
-local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
 
 local happinessValue = 0
 local hasPet = false
-local elapsedAccumulator = 0
 local initialized = false
 
 local function Clamp(value, minVal, maxVal)
@@ -130,100 +124,6 @@ local function GetPetDietTooltipText()
     return foods
 end
 
-local function RefreshMendPetSpellIndex()
-    local now = GetTime and GetTime() or 0
-    if mendPetSpellIndex and (now - lastMendPetScanAt) < 10 then
-        return
-    end
-
-    mendPetSpellIndex = nil
-    lastMendPetScanAt = now
-
-    if not GetSpellName then
-        return
-    end
-
-    local index = 1
-    while true do
-        local spellName = GetSpellName(index, BOOKTYPE_SPELL_CONST)
-        if not spellName then
-            break
-        end
-
-        local spellTexture = GetSpellTexture and GetSpellTexture(index, BOOKTYPE_SPELL_CONST) or ""
-        local lowerName = string.lower(spellName)
-        local lowerTexture = string.lower(spellTexture)
-
-        if string.find(lowerName, "mend pet", 1, true)
-            or string.find(lowerTexture, "ability_hunter_mendpet", 1, true) then
-            mendPetSpellIndex = index
-            return
-        end
-
-        index = index + 1
-        if index > 512 then
-            break
-        end
-    end
-end
-
-local function UpdateMendPetIconVisibility()
-    if not mendPetIconFrame then
-        return
-    end
-
-    if not UnitExists("pet") then
-        mendPetIconFrame:Hide()
-        return
-    end
-
-    local inRange = nil
-
-    RefreshMendPetSpellIndex()
-
-    if IsSpellInRange then
-        if mendPetSpellIndex then
-            inRange = IsSpellInRange(mendPetSpellIndex, BOOKTYPE_SPELL_CONST, "pet")
-            if inRange == nil and GetSpellName then
-                local spellName = GetSpellName(mendPetSpellIndex, BOOKTYPE_SPELL_CONST)
-                if spellName then
-                    inRange = IsSpellInRange(spellName, "pet")
-                end
-            end
-        end
-
-        if inRange == nil then
-            inRange = IsSpellInRange("Mend Pet", "pet")
-        end
-    end
-
-    if inRange == nil and CheckInteractDistance then
-        local near = false
-        local gotDistanceResult = false
-
-        for index = 1, 4 do
-            local distanceCheck = CheckInteractDistance("pet", index)
-            if distanceCheck ~= nil then
-                gotDistanceResult = true
-            end
-            if distanceCheck then
-                near = true
-                break
-            end
-        end
-
-        if gotDistanceResult then
-            inRange = near and 1 or 0
-        end
-    end
-
-    if inRange == 1 then
-        mendPetIconFrame:Show()
-    else
-        mendPetIconFrame:Hide()
-    end
-end
-
 local function UpdateVisual()
     if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or not loyaltyInfoText then
         return
@@ -231,7 +131,6 @@ local function UpdateVisual()
 
     happinessBar:SetValue(happinessValue)
     UpdateBarColor()
-    UpdateMendPetIconVisibility()
 
     if petDietIconFrame then
         if UnitExists("pet") then
@@ -478,37 +377,8 @@ local function InitializeAddon()
     loyaltyInfoText:SetJustifyH("CENTER")
     loyaltyInfoText:SetText("")
 
-    mendPetIconFrame = CreateFrame("Frame", nil, mainframe)
-    mendPetIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -26, -7)
-    mendPetIconFrame:SetWidth(16)
-    mendPetIconFrame:SetHeight(16)
-    mendPetIconFrame:SetFrameStrata("HIGH")
-    mendPetIconFrame:SetFrameLevel(mainframe:GetFrameLevel() + 10)
-    mendPetIconFrame:EnableMouse(true)
-
-    mendPetIconFrame:SetScript("OnEnter", function()
-        if not GameTooltip then
-            return
-        end
-
-        GameTooltip:SetOwner(mendPetIconFrame, "ANCHOR_RIGHT")
-        GameTooltip:SetText("Pet in healing range")
-        GameTooltip:Show()
-    end)
-
-    mendPetIconFrame:SetScript("OnLeave", function()
-        if GameTooltip then
-            GameTooltip:Hide()
-        end
-    end)
-
-    mendPetIconTexture = mendPetIconFrame:CreateTexture(nil, "OVERLAY")
-    mendPetIconTexture:SetAllPoints(mendPetIconFrame)
-    mendPetIconTexture:SetTexture("Interface\\Icons\\Ability_Hunter_MendPet")
-    mendPetIconFrame:Show()
-
     petDietIconFrame = CreateFrame("Frame", nil, mainframe)
-    petDietIconFrame:SetPoint("LEFT", mendPetIconFrame, "RIGHT", 4, 0)
+    petDietIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -6, -7)
     petDietIconFrame:SetWidth(16)
     petDietIconFrame:SetHeight(16)
     petDietIconFrame:SetFrameStrata("HIGH")
@@ -618,22 +488,6 @@ mainframe:SetScript("OnEvent", function(self, evt, a1)
     elseif evt == "PET_BAR_UPDATE" or evt == "PET_UI_UPDATE" then
         SyncToGameState(false)
     end
-end)
-
-mainframe:SetScript("OnUpdate", function(_, elapsed)
-    elapsed = elapsed or arg1 or 0
-
-    if not hasPet then
-        return
-    end
-
-    elapsedAccumulator = elapsedAccumulator + elapsed
-    if elapsedAccumulator < 0.1 then
-        return
-    end
-
-    elapsedAccumulator = 0
-    UpdateMendPetIconVisibility()
 end)
 
 mainframe:RegisterEvent("ADDON_LOADED")
