@@ -27,6 +27,8 @@ Since `GetPetHappiness()` only exposes 3 states (Unhappy/Content/Happy), this ad
 2. Copy the addon folder to:
    - `World of Warcraft/Interface/AddOns/Turtle_PetHappiness`
 3. Ensure these files are inside that folder:
+  - `Turtle_PetHappiness_Utils.lua`
+  - `Turtle_PetHappiness_Diet.lua`
    - `Turtle_PetHappiness.toc`
    - `Turtle_PetHappiness.lua`
 4. Start WoW and enable **Turtle Pet Happiness** in AddOns at character select.

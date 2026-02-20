@@ -7,4 +7,6 @@
 ## SavedVariables: TurtlePetHappinessDB
 ## SavedVariablesPerCharacter: TurtlePetHappinessCharDB
 
+Turtle_PetHappiness_Utils.lua
+Turtle_PetHappiness_Diet.lua
 Turtle_PetHappiness.lua

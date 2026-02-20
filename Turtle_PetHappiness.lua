@@ -1,15 +1,45 @@
 local ADDON_NAME = "Turtle_PetHappiness"
+local Addon = TurtlePetHappiness or {}
+TurtlePetHappiness = Addon
 
-local DEFAULTS = {
-    point = "CENTER",
-    x = 0,
-    y = -180,
-    width = 220,
-    height = 16,
-    locked = false,
-    hidden = false,
-    value = 100,
-}
+local DEFAULTS = Addon.DEFAULTS
+if type(DEFAULTS) ~= "table" then
+    DEFAULTS = {
+        point = "CENTER",
+        x = 0,
+        y = -180,
+        width = 220,
+        height = 16,
+        locked = false,
+        hidden = false,
+        value = 100
+    }
+    Addon.DEFAULTS = DEFAULTS
+end
+
+local Clamp = Addon.Clamp
+if type(Clamp) ~= "function" then
+    Clamp = function(value, minVal, maxVal)
+        if value < minVal then
+            return minVal
+        elseif value > maxVal then
+            return maxVal
+        end
+        return value
+    end
+    Addon.Clamp = Clamp
+end
+
+local GetPetDietTooltipText = Addon.GetPetDietTooltipText
+if type(GetPetDietTooltipText) ~= "function" then
+    GetPetDietTooltipText = function()
+        if not UnitExists("pet") then
+            return "No active pet"
+        end
+        return "Unknown"
+    end
+    Addon.GetPetDietTooltipText = GetPetDietTooltipText
+end
 
 local mainframe = CreateFrame("Frame", "TurtlePetHappinessFrame", UIParent)
 local happinessBarFrame
@@ -27,15 +57,6 @@ local happinessValue = 0
 local hasPet = false
 local initialized = false
 local db
-
-local function Clamp(value, minVal, maxVal)
-    if value < minVal then
-        return minVal
-    elseif value > maxVal then
-        return maxVal
-    end
-    return value
-end
 
 local function SavePosition()
     local point, _, _, x, y = mainframe:GetPoint(1)
@@ -61,73 +82,9 @@ local function UpdateBarColor()
     end
 end
 
-local PET_FAMILY_DIET_FALLBACK = {
-    ["Bat"] = "Fruit, Fungus",
-    ["Bear"] = "Bread, Cheese, Fish, Fruit, Fungus, Meat",
-    ["Boar"] = "Bread, Fruit, Fungus",
-    ["Carrion Bird"] = "Meat",
-    ["Cat"] = "Fish, Meat",
-    ["Core Hound"] = "Meat",
-    ["Crab"] = "Fish",
-    ["Crocolisk"] = "Fish, Meat",
-    ["Gorilla"] = "Fruit, Fungus",
-    ["Hyena"] = "Meat",
-    ["Owl"] = "Meat",
-    ["Raptor"] = "Meat",
-    ["Scorpid"] = "Meat",
-    ["Spider"] = "Meat",
-    ["Tallstrider"] = "Fruit, Fungus",
-    ["Turtle"] = "Fish, Fruit",
-    ["Wind Serpent"] = "Bread, Cheese, Fish",
-    ["Wolf"] = "Meat",
-}
-
-local function GetPetDietTooltipText()
-    if not UnitExists("pet") then
-        return "No active pet"
-    end
-
-    if not GetPetFoodTypes then
-        local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
-        return (family and PET_FAMILY_DIET_FALLBACK[family]) or "Unknown"
-    end
-
-    local result = { GetPetFoodTypes() }
-    local foodTypes = nil
-
-    if table.getn(result) == 1 and type(result[1]) == "table" then
-        foodTypes = result[1]
-    else
-        foodTypes = result
-    end
-
-    if type(foodTypes) ~= "table" or table.getn(foodTypes) == 0 then
-        local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
-        return (family and PET_FAMILY_DIET_FALLBACK[family]) or "Unknown"
-    end
-
-    local foods = ""
-    for i = 1, table.getn(foodTypes) do
-        local food = foodTypes[i]
-        if type(food) == "string" and food ~= "" then
-            if foods == "" then
-                foods = food
-            else
-                foods = foods .. ", " .. food
-            end
-        end
-    end
-
-    if foods == "" then
-        local family = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
-        return (family and PET_FAMILY_DIET_FALLBACK[family]) or "Unknown"
-    end
-
-    return foods
-end
-
 local function UpdateVisual()
-    if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or not loyaltyInfoText then
+    if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or
+        not loyaltyInfoText then
         return
     end
 
@@ -310,13 +267,13 @@ local function InitializeAddon()
     end
 
     mainframe:SetWidth(db.width)
-    mainframe:SetHeight(db.height + 66)
+    mainframe:SetHeight(db.height + 68)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
     happinessBarFrame:SetParent(mainframe)
-    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -33)
-    happinessBarFrame:SetWidth(db.width - 8)
+    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -33)
+    happinessBarFrame:SetWidth(db.width - 12)
     happinessBarFrame:SetHeight(db.height + 5)
 
     happinessBarFrame:SetBackdrop({
@@ -325,9 +282,15 @@ local function InitializeAddon()
         tile = true,
         tileSize = 8,
         edgeSize = 8,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        insets = {
+            left = 2,
+            right = 2,
+            top = 2,
+            bottom = 2
+        }
     })
     happinessBarFrame:SetBackdropColor(0, 0, 0, 0.5)
+    happinessBarFrame:SetBackdropBorderColor(.7, .7, .7, 1)
 
     happinessBar = CreateFrame("StatusBar", nil, happinessBarFrame)
     happinessBar:SetParent(happinessBarFrame)
@@ -349,9 +312,10 @@ local function InitializeAddon()
 
     petXpBarFrame = CreateFrame("Frame", nil, mainframe)
     petXpBarFrame:SetParent(mainframe)
-    petXpBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -56)
-    petXpBarFrame:SetWidth(db.width - 8)
+    petXpBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -56)
+    petXpBarFrame:SetWidth(db.width - 12)
     petXpBarFrame:SetHeight(db.height + 5)
+    petXpBarFrame:SetBackdropBorderColor(.7, .7, .7, 1)
 
     petXpBarFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -359,7 +323,12 @@ local function InitializeAddon()
         tile = true,
         tileSize = 8,
         edgeSize = 8,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        insets = {
+            left = 2,
+            right = 2,
+            top = 2,
+            bottom = 2
+        }
     })
     petXpBarFrame:SetBackdropColor(0, 0, 0, 0.5)
 
@@ -384,7 +353,7 @@ local function InitializeAddon()
     petXpBarText:SetText("XP N/A")
 
     petInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -6)
+    petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 8, -8)
     petInfoText:SetJustifyH("LEFT")
     petInfoText:SetText("No active pet")
 
@@ -427,11 +396,17 @@ local function InitializeAddon()
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
         edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         tile = true,
-        tileSize = 8,
-        edgeSize = 8,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+        tileSize = 16,
+        edgeSize = 16,
+        insets = {
+            left = 2,
+            right = 2,
+            top = 2,
+            bottom = 2
+        }
     })
     mainframe:SetBackdropColor(0, 0, 0, 0.5)
+    mainframe:SetBackdropBorderColor(.7, .7, .7, 1)
 
     mainframe:RegisterForDrag("LeftButton")
     mainframe:SetMovable(true)
