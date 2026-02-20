@@ -31,6 +31,7 @@ local happinessValue = 0
 local hasPet = false
 local elapsedAccumulator = 0
 local initialized = false
+local mendPetInRangeFrames = 0
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -174,6 +175,7 @@ local function UpdateMendPetIconVisibility()
 
     if not UnitExists("pet") then
         mendPetIconFrame:Hide()
+        mendPetInRangeFrames = 0
         return
     end
 
@@ -217,7 +219,19 @@ local function UpdateMendPetIconVisibility()
         end
     end
 
+    -- IsSpellInRange includes bounding radii of both units, reporting "in range"
+    -- slightly before the server's strict 45 y cast threshold. Requiring 25
+    -- consecutive in-range readings (~2.5 s at the 0.1 s tick) ensures the player
+    -- has moved ~6 y past the inflated boundary, safely inside actual Mend Pet
+    -- cast range. On a confirmed cast failure (SPELLCAST_FAILED) the counter is
+    -- reset to 0 so the player just needs to walk a couple more steps.
     if inRange == 1 then
+        mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 25)
+    else
+        mendPetInRangeFrames = 0
+    end
+
+    if mendPetInRangeFrames >= 25 then
         mendPetIconFrame:Show()
     else
         mendPetIconFrame:Hide()
@@ -617,6 +631,13 @@ mainframe:SetScript("OnEvent", function(self, evt, a1)
         SyncToGameState(true)
     elseif evt == "PET_BAR_UPDATE" or evt == "PET_UI_UPDATE" then
         SyncToGameState(false)
+    elseif evt == "SPELLCAST_FAILED" then
+        -- When a Mend Pet cast is rejected by the server (e.g. "Out of Range"),
+        -- reset the counter so the icon hides immediately and requires the
+        -- standard 25-tick run-up before it can reappear.
+        if a1 and string.lower(tostring(a1)) == "mend pet" then
+            mendPetInRangeFrames = 0
+        end
     end
 end)
 
@@ -643,6 +664,7 @@ mainframe:RegisterEvent("UNIT_HAPPINESS")
 mainframe:RegisterEvent("UNIT_PET")
 mainframe:RegisterEvent("PET_BAR_UPDATE")
 mainframe:RegisterEvent("PET_UI_UPDATE")
+mainframe:RegisterEvent("SPELLCAST_FAILED")
 
 mainframe:SetScript("OnHide", function()
     if TurtlePetHappinessDB then
