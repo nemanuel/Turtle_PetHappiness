@@ -30,9 +30,9 @@ local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
 local DECAY_PER_SECOND = 0.02
 local FEED_BOOST = 25
 local FEED_TARGET_BUFFER = 5
+local MIN_CALIBRATION_DURATION = 30
+local DEFAULT_STATE_DURATION = 600
 local STATE_TARGET = { [1] = 17, [2] = 50, [3] = 83 }
-local HAPPY_THRESHOLD = 66
-local CONTENT_THRESHOLD = 33
 
 local happinessValue = 0
 local hasPet = false
@@ -40,7 +40,11 @@ local elapsedAccumulator = 0
 local initialized = false
 local virtualHappiness = 50
 local lastHappinessState = 0
-local predictionTimerText = nil
+local stateStartTime = 0
+local predictedDuration = { [3] = DEFAULT_STATE_DURATION, [2] = DEFAULT_STATE_DURATION }
+local decayBarFrame = nil
+local decayBar = nil
+local decayBarText = nil
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -235,32 +239,47 @@ local function UpdateMendPetIconVisibility()
 end
 
 local function UpdatePredictionTimer()
-    if not predictionTimerText then
+    if not decayBar or not decayBarText then
         return
     end
 
     if not hasPet or happinessValue == 0 then
-        predictionTimerText:SetText("")
+        decayBar:SetValue(0)
+        decayBarText:SetText("")
+        decayBar:SetStatusBarColor(0.4, 0.4, 0.4)
         return
     end
 
-    if happinessValue == 3 then
-        local timeMin = (virtualHappiness - HAPPY_THRESHOLD) / (DECAY_PER_SECOND * 60)
-        if timeMin < 1 then
-            predictionTimerText:SetText("~1 min until Content")
-        else
-            predictionTimerText:SetText(string.format("~%.0f min until Content", timeMin))
-        end
-    elseif happinessValue == 2 then
-        local timeMin = (virtualHappiness - CONTENT_THRESHOLD) / (DECAY_PER_SECOND * 60)
-        if timeMin < 1 then
-            predictionTimerText:SetText("~1 min until Unhappy")
-        else
-            predictionTimerText:SetText(string.format("~%.0f min until Unhappy", timeMin))
-        end
-    elseif happinessValue == 1 then
-        predictionTimerText:SetText("Pet is Unhappy! Feed it!")
+    if happinessValue == 1 then
+        decayBar:SetMinMaxValues(0, 1)
+        decayBar:SetValue(0)
+        decayBar:SetStatusBarColor(0.9, 0.2, 0.2)
+        decayBarText:SetText("Pet is Unhappy! Feed it!")
+        return
     end
+
+    local now = GetTime and GetTime() or 0
+    local elapsed = now - stateStartTime
+    local duration = predictedDuration[happinessValue] or DEFAULT_STATE_DURATION
+    local remaining = duration - elapsed
+    if remaining < 0 then remaining = 0 end
+
+    decayBar:SetMinMaxValues(0, duration)
+    decayBar:SetValue(remaining)
+
+    local pct = remaining / duration
+    if pct > 0.5 then
+        decayBar:SetStatusBarColor(0.2, 0.8, 0.2)
+    elseif pct > 0.25 then
+        decayBar:SetStatusBarColor(0.9, 0.75, 0.2)
+    else
+        decayBar:SetStatusBarColor(0.9, 0.2, 0.2)
+    end
+
+    local mins = math.floor(remaining / 60)
+    local secs = math.floor(remaining - mins * 60)
+    local nextState = happinessValue == 3 and "Content" or "Unhappy"
+    decayBarText:SetText(string.format("%d:%02d until %s", mins, secs, nextState))
 end
 
 local function UpdateVisual()
@@ -379,6 +398,7 @@ local function SyncToGameState(forceSnap)
         happinessValue = 0
         lastHappinessState = 0
         virtualHappiness = 50
+        stateStartTime = 0
         UpdateVisual()
         return
     end
@@ -387,12 +407,19 @@ local function SyncToGameState(forceSnap)
     if state == 1 or state == 2 or state == 3 then
         if forceSnap or lastHappinessState == 0 then
             virtualHappiness = STATE_TARGET[state]
+            stateStartTime = GetTime and GetTime() or 0
         elseif state > lastHappinessState then
             virtualHappiness = Clamp(virtualHappiness + FEED_BOOST, STATE_TARGET[state] - FEED_TARGET_BUFFER, 100)
+            stateStartTime = GetTime and GetTime() or 0
         elseif state < lastHappinessState then
+            local now = GetTime and GetTime() or 0
+            if stateStartTime > 0 and (now - stateStartTime) > MIN_CALIBRATION_DURATION then
+                predictedDuration[lastHappinessState] = now - stateStartTime
+            end
             if virtualHappiness > STATE_TARGET[state] then
                 virtualHappiness = STATE_TARGET[state]
             end
+            stateStartTime = now
         end
         happinessValue = state
         lastHappinessState = state
@@ -418,8 +445,8 @@ local function ToggleLock(locked)
         if loyaltyInfoText then
             loyaltyInfoText:SetTextColor(1, 1, 1)
         end
-        if predictionTimerText then
-            predictionTimerText:SetTextColor(1, 1, 1)
+        if decayBarText then
+            decayBarText:SetTextColor(1, 1, 1)
         end
     else
         happinessBarText:SetTextColor(0.8, 0.95, 1)
@@ -432,8 +459,8 @@ local function ToggleLock(locked)
         if loyaltyInfoText then
             loyaltyInfoText:SetTextColor(0.8, 0.95, 1)
         end
-        if predictionTimerText then
-            predictionTimerText:SetTextColor(0.8, 0.95, 1)
+        if decayBarText then
+            decayBarText:SetTextColor(0.8, 0.95, 1)
         end
     end
 end
@@ -454,7 +481,7 @@ local function InitializeAddon()
     end
 
     mainframe:SetWidth(TurtlePetHappinessDB.width)
-    mainframe:SetHeight(TurtlePetHappinessDB.height + 82)
+    mainframe:SetHeight(TurtlePetHappinessDB.height + 90)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
@@ -527,10 +554,42 @@ local function InitializeAddon()
     petXpBarText:SetJustifyH("CENTER")
     petXpBarText:SetText("XP N/A")
 
-    predictionTimerText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    predictionTimerText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -79)
-    predictionTimerText:SetJustifyH("LEFT")
-    predictionTimerText:SetText("")
+    decayBarFrame = CreateFrame("Frame", nil, mainframe)
+    decayBarFrame:SetParent(mainframe)
+    decayBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -79)
+    decayBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
+    decayBarFrame:SetHeight(TurtlePetHappinessDB.height + 5)
+
+    decayBarFrame:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 8,
+        edgeSize = 8,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    decayBarFrame:SetBackdropColor(0, 0, 0, 0.5)
+
+    decayBar = CreateFrame("StatusBar", nil, decayBarFrame)
+    decayBar:SetParent(decayBarFrame)
+    decayBar:SetPoint("TOPLEFT", decayBarFrame, "TOPLEFT", 4, -4)
+    decayBar:SetPoint("TOPRIGHT", decayBarFrame, "TOPRIGHT", -4, 0)
+    decayBar:SetHeight(13)
+    decayBar:SetMinMaxValues(0, DEFAULT_STATE_DURATION)
+    decayBar:SetValue(DEFAULT_STATE_DURATION)
+    decayBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    decayBar:SetStatusBarColor(0.2, 0.8, 0.2)
+
+    decayBar.bg = decayBar:CreateTexture(nil, "BACKGROUND")
+    decayBar.bg:SetAllPoints(decayBar)
+    decayBar.bg:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    decayBar.bg:SetVertexColor(0.15, 0.15, 0.15, 0.9)
+
+    decayBarText = decayBarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    decayBarText:SetParent(decayBar)
+    decayBarText:SetPoint("CENTER", decayBar, "CENTER", 0, 1)
+    decayBarText:SetJustifyH("CENTER")
+    decayBarText:SetText("")
 
     petInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -6)
