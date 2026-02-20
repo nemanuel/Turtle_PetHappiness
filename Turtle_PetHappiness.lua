@@ -220,20 +220,18 @@ local function UpdateMendPetIconVisibility()
     end
 
     -- IsSpellInRange includes bounding radii of both units, reporting "in range"
-    -- slightly before the server's strict cast threshold. Requiring 30 consecutive
-    -- in-range readings (~3 s at the 0.1 s tick) ensures the player has moved
-    -- far enough past the inflated boundary to be within actual Mend Pet cast
-    -- range at any realistic movement speed.
-    -- After a confirmed cast failure (SPELLCAST_FAILED), the counter is set to -30
-    -- so that 60 consecutive ticks (~6 s / ~15 y at walk speed) are needed before
-    -- the icon reappears, preventing it from cycling back on at the wrong position.
+    -- slightly before the server's strict 45 y cast threshold. Requiring 25
+    -- consecutive in-range readings (~2.5 s at the 0.1 s tick) ensures the player
+    -- has moved ~6 y past the inflated boundary, safely inside actual Mend Pet
+    -- cast range. On a confirmed cast failure (SPELLCAST_FAILED) the counter is
+    -- reset to 0 so the player just needs to walk a couple more steps.
     if inRange == 1 then
-        mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 30)
+        mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 25)
     else
         mendPetInRangeFrames = 0
     end
 
-    if mendPetInRangeFrames >= 30 then
+    if mendPetInRangeFrames >= 25 then
         mendPetIconFrame:Show()
     else
         mendPetIconFrame:Hide()
@@ -635,11 +633,10 @@ mainframe:SetScript("OnEvent", function(self, evt, a1)
         SyncToGameState(false)
     elseif evt == "SPELLCAST_FAILED" then
         -- When a Mend Pet cast is rejected by the server (e.g. "Out of Range"),
-        -- drive the counter deep negative so the icon cannot reappear until the
-        -- player has been continuously inside the inflated zone for ~6 s (~15 y
-        -- at walk speed), which places them well within the true 45 y threshold.
+        -- reset the counter so the icon hides immediately and requires the
+        -- standard 25-tick run-up before it can reappear.
         if a1 and string.lower(tostring(a1)) == "mend pet" then
-            mendPetInRangeFrames = -30
+            mendPetInRangeFrames = 0
         end
     end
 end)
