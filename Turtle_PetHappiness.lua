@@ -26,6 +26,7 @@ local petDietIconTexture
 local mendPetSpellIndex
 local lastMendPetScanAt = 0
 local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
+local MEND_PET_RANGE = 45
 
 local happinessValue = 0
 local hasPet = false
@@ -194,6 +195,20 @@ local function UpdateMendPetIconVisibility()
 
         if inRange == nil then
             inRange = IsSpellInRange("Mend Pet", "pet")
+        end
+    end
+
+    if inRange == 1 and UnitPosition then
+        local px, py, pz = UnitPosition("player")
+        local ux, uy, uz = UnitPosition("pet")
+        if px and ux then
+            local dx = px - ux
+            local dy = py - uy
+            local dz = (pz and uz) and (pz - uz) or 0
+            local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if dist > MEND_PET_RANGE then
+                inRange = 0
+            end
         end
     end
 
