@@ -1,5 +1,5 @@
 ## Interface: 11200
-## Title |cffabd473Turtle|r Pet Happiness
+## Title: |cffabd473Turtle|r Pet Happiness
 ## Notes: A lightweight addon for Turtle WoW that enhances the Hunter pet happiness system with a visual meter.
 ## Author: Chromag
 ## Version: 1.0.0
