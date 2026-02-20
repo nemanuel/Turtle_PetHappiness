@@ -26,6 +26,7 @@ local petDietIconTexture
 local happinessValue = 0
 local hasPet = false
 local initialized = false
+local db
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -38,14 +39,14 @@ end
 
 local function SavePosition()
     local point, _, _, x, y = mainframe:GetPoint(1)
-    TurtlePetHappinessDB.point = point
-    TurtlePetHappinessDB.x = x
-    TurtlePetHappinessDB.y = y
+    db.point = point
+    db.x = x
+    db.y = y
 end
 
 local function ApplyPosition()
     mainframe:ClearAllPoints()
-    mainframe:SetPoint(TurtlePetHappinessDB.point, UIParent, TurtlePetHappinessDB.point, TurtlePetHappinessDB.x, TurtlePetHappinessDB.y)
+    mainframe:SetPoint(db.point, UIParent, db.point, db.x, db.y)
 end
 
 local function UpdateBarColor()
@@ -232,7 +233,7 @@ local function SyncToGameState(forceSnap)
     end
 
     hasPet = UnitExists("pet") and true or false
-    if TurtlePetHappinessDB and TurtlePetHappinessDB.hidden then
+    if db and db.hidden then
         mainframe:Hide()
     else
         mainframe:Show()
@@ -255,7 +256,7 @@ local function SyncToGameState(forceSnap)
 end
 
 local function ToggleLock(locked)
-    TurtlePetHappinessDB.locked = locked
+    db.locked = locked
     mainframe:EnableMouse(not locked)
 
     if locked then
@@ -288,25 +289,35 @@ local function InitializeAddon()
         return
     end
 
-    if not TurtlePetHappinessDB then
-        TurtlePetHappinessDB = {}
+    if not TurtlePetHappinessCharDB then
+        TurtlePetHappinessCharDB = {}
     end
 
-    for key, value in pairs(DEFAULTS) do
-        if TurtlePetHappinessDB[key] == nil then
-            TurtlePetHappinessDB[key] = value
+    db = TurtlePetHappinessCharDB
+
+    if next(db) == nil and TurtlePetHappinessDB then
+        for key, value in pairs(DEFAULTS) do
+            if TurtlePetHappinessDB[key] ~= nil then
+                db[key] = TurtlePetHappinessDB[key]
+            end
         end
     end
 
-    mainframe:SetWidth(TurtlePetHappinessDB.width)
-    mainframe:SetHeight(TurtlePetHappinessDB.height + 66)
+    for key, value in pairs(DEFAULTS) do
+        if db[key] == nil then
+            db[key] = value
+        end
+    end
+
+    mainframe:SetWidth(db.width)
+    mainframe:SetHeight(db.height + 66)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
     happinessBarFrame:SetParent(mainframe)
     happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -33)
-    happinessBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
-    happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 5)
+    happinessBarFrame:SetWidth(db.width - 8)
+    happinessBarFrame:SetHeight(db.height + 5)
 
     happinessBarFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -339,8 +350,8 @@ local function InitializeAddon()
     petXpBarFrame = CreateFrame("Frame", nil, mainframe)
     petXpBarFrame:SetParent(mainframe)
     petXpBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -56)
-    petXpBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
-    petXpBarFrame:SetHeight(TurtlePetHappinessDB.height + 5)
+    petXpBarFrame:SetWidth(db.width - 8)
+    petXpBarFrame:SetHeight(db.height + 5)
 
     petXpBarFrame:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -426,7 +437,7 @@ local function InitializeAddon()
     mainframe:SetMovable(true)
     mainframe:SetClampedToScreen(true)
     mainframe:SetScript("OnDragStart", function()
-        if not TurtlePetHappinessDB.locked then
+        if not db.locked then
             mainframe:StartMoving()
         end
     end)
@@ -436,13 +447,13 @@ local function InitializeAddon()
     end)
 
     ApplyPosition()
-    if TurtlePetHappinessDB.hidden then
+    if db.hidden then
         mainframe:Hide()
     else
         mainframe:Show()
     end
-    happinessValue = Clamp(TurtlePetHappinessDB.value or 0, 0, 3)
-    ToggleLock(TurtlePetHappinessDB.locked)
+    happinessValue = Clamp(db.value or 0, 0, 3)
+    ToggleLock(db.locked)
 
     SLASH_TURTLEPETHAPPINESS1 = "/tph"
     SlashCmdList.TURTLEPETHAPPINESS = function(msg)
@@ -455,20 +466,20 @@ local function InitializeAddon()
             ToggleLock(false)
             print("Turtle Pet Happiness: unlocked")
         elseif input == "reset" then
-            TurtlePetHappinessDB.point = DEFAULTS.point
-            TurtlePetHappinessDB.x = DEFAULTS.x
-            TurtlePetHappinessDB.y = DEFAULTS.y
+            db.point = DEFAULTS.point
+            db.x = DEFAULTS.x
+            db.y = DEFAULTS.y
             ApplyPosition()
             print("Turtle Pet Happiness: position reset")
         elseif input == "hide" then
-            TurtlePetHappinessDB.hidden = true
+            db.hidden = true
             mainframe:Hide()
             print("Turtle Pet Happiness: hidden")
         elseif input == "show" then
-            TurtlePetHappinessDB.hidden = false
-            TurtlePetHappinessDB.point = DEFAULTS.point
-            TurtlePetHappinessDB.x = DEFAULTS.x
-            TurtlePetHappinessDB.y = DEFAULTS.y
+            db.hidden = false
+            db.point = DEFAULTS.point
+            db.x = DEFAULTS.x
+            db.y = DEFAULTS.y
             ApplyPosition()
             mainframe:Show()
             print("Turtle Pet Happiness: shown at center")
@@ -513,7 +524,7 @@ mainframe:RegisterEvent("PET_BAR_UPDATE")
 mainframe:RegisterEvent("PET_UI_UPDATE")
 
 mainframe:SetScript("OnHide", function()
-    if TurtlePetHappinessDB then
-        TurtlePetHappinessDB.value = happinessValue
+    if db then
+        db.value = happinessValue
     end
 end)

@@ -19,7 +19,7 @@ Since `GetPetHappiness()` only exposes 3 states (Unhappy/Content/Happy), this ad
 - Auto-sync with in-game pet state changes
 - Feed boost detection (spellcast/chat-event based)
 - Draggable frame
-- Position persistence between sessions
+- Position persistence per character
 
 ## Installation
 
