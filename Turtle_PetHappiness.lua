@@ -57,12 +57,34 @@ local happinessValue = 0
 local hasPet = false
 local initialized = false
 local db
+local backupDb
+
+local function GetCharacterKey()
+    local playerName = UnitName and UnitName("player") or nil
+    if not playerName or playerName == "" then
+        return nil
+    end
+
+    local realmName = GetRealmName and GetRealmName() or "UnknownRealm"
+    return realmName .. ":" .. playerName
+end
+
+local function SyncBackupDb()
+    if not db or not backupDb then
+        return
+    end
+
+    for key, _ in pairs(DEFAULTS) do
+        backupDb[key] = db[key]
+    end
+end
 
 local function SavePosition()
     local point, _, _, x, y = mainframe:GetPoint(1)
     db.point = point
     db.x = x
     db.y = y
+    SyncBackupDb()
 end
 
 local function ApplyPosition()
@@ -214,6 +236,7 @@ end
 
 local function ToggleLock(locked)
     db.locked = locked
+    SyncBackupDb()
     mainframe:EnableMouse(not locked)
 
     if locked then
@@ -250,7 +273,30 @@ local function InitializeAddon()
         TurtlePetHappinessCharDB = {}
     end
 
+    if not TurtlePetHappinessDB then
+        TurtlePetHappinessDB = {}
+    end
+
     db = TurtlePetHappinessCharDB
+
+    local characterKey = GetCharacterKey()
+    if characterKey then
+        if type(TurtlePetHappinessDB.characters) ~= "table" then
+            TurtlePetHappinessDB.characters = {}
+        end
+        if type(TurtlePetHappinessDB.characters[characterKey]) ~= "table" then
+            TurtlePetHappinessDB.characters[characterKey] = {}
+        end
+        backupDb = TurtlePetHappinessDB.characters[characterKey]
+    end
+
+    if next(db) == nil and backupDb and next(backupDb) ~= nil then
+        for key, _ in pairs(DEFAULTS) do
+            if backupDb[key] ~= nil then
+                db[key] = backupDb[key]
+            end
+        end
+    end
 
     if next(db) == nil and TurtlePetHappinessDB then
         for key, value in pairs(DEFAULTS) do
@@ -265,6 +311,8 @@ local function InitializeAddon()
             db[key] = value
         end
     end
+
+    SyncBackupDb()
 
     mainframe:SetWidth(db.width)
     mainframe:SetHeight(db.height + 68)
@@ -444,10 +492,12 @@ local function InitializeAddon()
             db.point = DEFAULTS.point
             db.x = DEFAULTS.x
             db.y = DEFAULTS.y
+            SyncBackupDb()
             ApplyPosition()
             print("Turtle Pet Happiness: position reset")
         elseif input == "hide" then
             db.hidden = true
+            SyncBackupDb()
             mainframe:Hide()
             print("Turtle Pet Happiness: hidden")
         elseif input == "show" then
@@ -455,6 +505,7 @@ local function InitializeAddon()
             db.point = DEFAULTS.point
             db.x = DEFAULTS.x
             db.y = DEFAULTS.y
+            SyncBackupDb()
             ApplyPosition()
             mainframe:Show()
             print("Turtle Pet Happiness: shown at center")
@@ -501,5 +552,6 @@ mainframe:RegisterEvent("PET_UI_UPDATE")
 mainframe:SetScript("OnHide", function()
     if db then
         db.value = happinessValue
+        SyncBackupDb()
     end
 end)
