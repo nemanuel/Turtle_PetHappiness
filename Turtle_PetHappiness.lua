@@ -26,12 +26,12 @@ local petDietIconTexture
 local mendPetSpellIndex
 local lastMendPetScanAt = 0
 local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
-local MEND_PET_RANGE = 45
 
 local happinessValue = 0
 local hasPet = false
 local elapsedAccumulator = 0
 local initialized = false
+local mendPetInRangeFrames = 0
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -175,6 +175,7 @@ local function UpdateMendPetIconVisibility()
 
     if not UnitExists("pet") then
         mendPetIconFrame:Hide()
+        mendPetInRangeFrames = 0
         return
     end
 
@@ -195,20 +196,6 @@ local function UpdateMendPetIconVisibility()
 
         if inRange == nil then
             inRange = IsSpellInRange("Mend Pet", "pet")
-        end
-    end
-
-    if inRange == 1 and UnitPosition then
-        local px, py, pz = UnitPosition("player")
-        local ux, uy, uz = UnitPosition("pet")
-        if px and ux then
-            local dx = px - ux
-            local dy = py - uy
-            local dz = (pz and uz) and (pz - uz) or 0
-            local dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-            if dist > MEND_PET_RANGE then
-                inRange = 0
-            end
         end
     end
 
@@ -233,6 +220,12 @@ local function UpdateMendPetIconVisibility()
     end
 
     if inRange == 1 then
+        mendPetInRangeFrames = math.min(mendPetInRangeFrames + 1, 3)
+    else
+        mendPetInRangeFrames = 0
+    end
+
+    if mendPetInRangeFrames >= 3 then
         mendPetIconFrame:Show()
     else
         mendPetIconFrame:Hide()
