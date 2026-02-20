@@ -10,9 +10,6 @@ local DEFAULTS = {
     value = 100,
 }
 
-local DECAY_PER_SECOND = 0.06
-local FEED_BOOST = 25
-
 local mainframe = CreateFrame("Frame", "TurtlePetHappinessFrame", UIParent)
 local happinessBarFrame
 local happinessBar
@@ -30,19 +27,10 @@ local mendPetSpellIndex
 local lastMendPetScanAt = 0
 local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
 
-local happinessValue = 100
+local happinessValue = 0
 local hasPet = false
 local elapsedAccumulator = 0
 local initialized = false
-local lastFeedEventTime = 0
-local feedGraceUntil = 0
-local lastHappinessState = nil
-
-local STATE_DECAY_MULTIPLIER = {
-    [1] = 0.9,
-    [2] = 1.0,
-    [3] = 1.1,
-}
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -51,32 +39,6 @@ local function Clamp(value, minVal, maxVal)
         return maxVal
     end
     return value
-end
-
-local function StateBandFromState(state)
-    if state == 3 then
-        return 67, 100
-    elseif state == 2 then
-        return 34, 66
-    elseif state == 1 then
-        return 0, 33
-    end
-    return nil, nil
-end
-
-local function GetDynamicDecayRate(state)
-    local rate = DECAY_PER_SECOND
-    local multiplier = STATE_DECAY_MULTIPLIER[state]
-
-    if multiplier then
-        rate = rate * multiplier
-    end
-
-    if UnitAffectingCombat and UnitAffectingCombat("pet") then
-        rate = rate * 1.25
-    end
-
-    return rate
 end
 
 local function SavePosition()
@@ -92,12 +54,14 @@ local function ApplyPosition()
 end
 
 local function UpdateBarColor()
-    if happinessValue >= 67 then
+    if happinessValue == 3 then
         happinessBar:SetStatusBarColor(0.2, 0.8, 0.2)
-    elseif happinessValue >= 34 then
+    elseif happinessValue == 2 then
         happinessBar:SetStatusBarColor(0.9, 0.75, 0.2)
-    else
+    elseif happinessValue == 1 then
         happinessBar:SetStatusBarColor(0.9, 0.2, 0.2)
+    else
+        happinessBar:SetStatusBarColor(0.4, 0.4, 0.4)
     end
 end
 
@@ -277,7 +241,7 @@ local function UpdateVisual()
         end
     end
 
-    local state = GetPetHappiness and GetPetHappiness() or nil
+    local state = happinessValue
     local stateText = "No Pet"
     if state == 3 then
         stateText = "Happy"
@@ -355,7 +319,11 @@ local function UpdateVisual()
         petXpBarText:SetText("XP N/A")
     end
 
-    happinessBarText:SetText(string.format("Happiness %d%% (%s)", happinessValue, stateText))
+    if state == 1 or state == 2 or state == 3 then
+        happinessBarText:SetText(string.format("Happiness %d (%s)", state, stateText))
+    else
+        happinessBarText:SetText("Happiness N/A")
+    end
 end
 
 local function SyncToGameState(forceSnap)
@@ -367,73 +335,19 @@ local function SyncToGameState(forceSnap)
     mainframe:Show()
 
     if not hasPet then
+        happinessValue = 0
         UpdateVisual()
         return
     end
 
     local state = GetPetHappiness and GetPetHappiness() or nil
-    local minBand, maxBand = StateBandFromState(state)
-
-    if not (minBand and maxBand) then
-        happinessValue = Clamp(happinessValue, 0, 100)
-        UpdateVisual()
-        return
-    end
-
-    if forceSnap then
-        if lastHappinessState and state and state < lastHappinessState then
-            happinessValue = maxBand
-        elseif lastHappinessState and state and state > lastHappinessState then
-            happinessValue = minBand
-        else
-            happinessValue = Clamp(happinessValue, minBand, maxBand)
-        end
+    if state == 1 or state == 2 or state == 3 then
+        happinessValue = state
     else
-        local now = GetTime and GetTime() or 0
-        if now < feedGraceUntil then
-            if happinessValue < minBand then
-                happinessValue = minBand
-            end
-        elseif happinessValue < minBand then
-            happinessValue = (happinessValue * 0.8) + (minBand * 0.4)
-        elseif happinessValue > maxBand then
-            happinessValue = (happinessValue * 0.85) + (maxBand * 0.15)
-        end
+        happinessValue = 0
     end
 
-    lastHappinessState = state
-
-    happinessValue = Clamp(happinessValue, 0, 100)
     UpdateVisual()
-end
-
-local function OnFeedDetected()
-    local now = GetTime and GetTime() or 0
-    if not hasPet or (now - lastFeedEventTime) < 1.5 then
-        return
-    end
-
-    lastFeedEventTime = now
-    happinessValue = Clamp(happinessValue + FEED_BOOST, 0, 100)
-    feedGraceUntil = now + 10
-    UpdateVisual()
-end
-
-local function IsLikelyFeedMessage(msg)
-    if not msg then
-        return false
-    end
-
-    local lower = string.lower(msg)
-    if string.find(lower, "feed pet", 1, true) then
-        return true
-    end
-
-    if string.find(lower, "pet begins eating", 1, true) then
-        return true
-    end
-
-    return false
 end
 
 local function ToggleLock(locked)
@@ -505,7 +419,7 @@ local function InitializeAddon()
     happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 4, -4)
     happinessBar:SetPoint("TOPRIGHT", happinessBarFrame, "TOPRIGHT", -4, 0)
     happinessBar:SetHeight(13)
-    happinessBar:SetMinMaxValues(0, 100)
+    happinessBar:SetMinMaxValues(0, 3)
     happinessBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
 
     happinessBar.bg = happinessBar:CreateTexture(nil, "BACKGROUND")
@@ -565,7 +479,7 @@ local function InitializeAddon()
     loyaltyInfoText:SetText("")
 
     mendPetIconFrame = CreateFrame("Frame", nil, mainframe)
-    mendPetIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -26, -6)
+    mendPetIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -26, -7)
     mendPetIconFrame:SetWidth(16)
     mendPetIconFrame:SetHeight(16)
     mendPetIconFrame:SetFrameStrata("HIGH")
@@ -648,7 +562,7 @@ local function InitializeAddon()
 
     ApplyPosition()
     mainframe:Show()
-    happinessValue = Clamp(TurtlePetHappinessDB.value or 100, 0, 100)
+    happinessValue = Clamp(TurtlePetHappinessDB.value or 0, 0, 3)
     ToggleLock(TurtlePetHappinessDB.locked)
 
     SLASH_TURTLEPETHAPPINESS1 = "/tph"
@@ -703,10 +617,6 @@ mainframe:SetScript("OnEvent", function(self, evt, a1)
         SyncToGameState(true)
     elseif evt == "PET_BAR_UPDATE" or evt == "PET_UI_UPDATE" then
         SyncToGameState(false)
-    elseif evt == "CHAT_MSG_SPELL_SELF_BUFF" or evt == "CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS" then
-        if IsLikelyFeedMessage(a1) then
-            OnFeedDetected()
-        end
     end
 end)
 
@@ -722,15 +632,8 @@ mainframe:SetScript("OnUpdate", function(_, elapsed)
         return
     end
 
-    local delta = elapsedAccumulator
     elapsedAccumulator = 0
-
-    local state = GetPetHappiness and GetPetHappiness() or nil
-    local decayRate = GetDynamicDecayRate(state)
-    happinessValue = happinessValue - (decayRate * delta)
-
-    happinessValue = Clamp(happinessValue, 0, 100)
-    UpdateVisual()
+    UpdateMendPetIconVisibility()
 end)
 
 mainframe:RegisterEvent("ADDON_LOADED")
@@ -740,8 +643,6 @@ mainframe:RegisterEvent("UNIT_HAPPINESS")
 mainframe:RegisterEvent("UNIT_PET")
 mainframe:RegisterEvent("PET_BAR_UPDATE")
 mainframe:RegisterEvent("PET_UI_UPDATE")
-mainframe:RegisterEvent("CHAT_MSG_SPELL_SELF_BUFF")
-mainframe:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_SELF_BUFFS")
 
 mainframe:SetScript("OnHide", function()
     if TurtlePetHappinessDB then
