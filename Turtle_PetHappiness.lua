@@ -7,6 +7,7 @@ local DEFAULTS = {
     width = 220,
     height = 16,
     locked = false,
+    hidden = false,
     value = 100,
 }
 
@@ -231,7 +232,11 @@ local function SyncToGameState(forceSnap)
     end
 
     hasPet = UnitExists("pet") and true or false
-    mainframe:Show()
+    if TurtlePetHappinessDB and TurtlePetHappinessDB.hidden then
+        mainframe:Hide()
+    else
+        mainframe:Show()
+    end
 
     if not hasPet then
         happinessValue = 0
@@ -431,7 +436,11 @@ local function InitializeAddon()
     end)
 
     ApplyPosition()
-    mainframe:Show()
+    if TurtlePetHappinessDB.hidden then
+        mainframe:Hide()
+    else
+        mainframe:Show()
+    end
     happinessValue = Clamp(TurtlePetHappinessDB.value or 0, 0, 3)
     ToggleLock(TurtlePetHappinessDB.locked)
 
@@ -451,7 +460,12 @@ local function InitializeAddon()
             TurtlePetHappinessDB.y = DEFAULTS.y
             ApplyPosition()
             print("Turtle Pet Happiness: position reset")
+        elseif input == "hide" then
+            TurtlePetHappinessDB.hidden = true
+            mainframe:Hide()
+            print("Turtle Pet Happiness: hidden")
         elseif input == "show" then
+            TurtlePetHappinessDB.hidden = false
             TurtlePetHappinessDB.point = DEFAULTS.point
             TurtlePetHappinessDB.x = DEFAULTS.x
             TurtlePetHappinessDB.y = DEFAULTS.y
@@ -459,7 +473,7 @@ local function InitializeAddon()
             mainframe:Show()
             print("Turtle Pet Happiness: shown at center")
         else
-            print("Turtle Pet Happiness commands: /tph lock, /tph unlock, /tph reset, /tph show")
+            print("Turtle Pet Happiness commands: /tph lock, /tph unlock, /tph reset, /tph hide, /tph show")
         end
     end
 
