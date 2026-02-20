@@ -320,7 +320,7 @@ local function UpdateVisual()
     end
 
     if state == 1 or state == 2 or state == 3 then
-        happinessBarText:SetText(string.format("Happiness %d (%s)", state, stateText))
+        happinessBarText:SetText(string.format("%s", stateText))
     else
         happinessBarText:SetText("Happiness N/A")
     end
@@ -400,7 +400,7 @@ local function InitializeAddon()
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
     happinessBarFrame:SetParent(mainframe)
-    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -34)
+    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 4, -33)
     happinessBarFrame:SetWidth(TurtlePetHappinessDB.width - 8)
     happinessBarFrame:SetHeight(TurtlePetHappinessDB.height + 5)
 
@@ -474,7 +474,7 @@ local function InitializeAddon()
     petInfoText:SetText("No active pet")
 
     loyaltyInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 5, -18)
+    loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 5, -19)
     loyaltyInfoText:SetJustifyH("CENTER")
     loyaltyInfoText:SetText("")
 
