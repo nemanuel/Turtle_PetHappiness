@@ -27,10 +27,20 @@ local mendPetSpellIndex
 local lastMendPetScanAt = 0
 local BOOKTYPE_SPELL_CONST = BOOKTYPE_SPELL or "spell"
 
+local DECAY_PER_SECOND = 0.02
+local FEED_BOOST = 25
+local FEED_TARGET_BUFFER = 5
+local STATE_TARGET = { [1] = 17, [2] = 50, [3] = 83 }
+local HAPPY_THRESHOLD = 66
+local CONTENT_THRESHOLD = 33
+
 local happinessValue = 0
 local hasPet = false
 local elapsedAccumulator = 0
 local initialized = false
+local virtualHappiness = 50
+local lastHappinessState = 0
+local predictionTimerText = nil
 
 local function Clamp(value, minVal, maxVal)
     if value < minVal then
@@ -224,12 +234,41 @@ local function UpdateMendPetIconVisibility()
     end
 end
 
+local function UpdatePredictionTimer()
+    if not predictionTimerText then
+        return
+    end
+
+    if not hasPet or happinessValue == 0 then
+        predictionTimerText:SetText("")
+        return
+    end
+
+    if happinessValue == 3 then
+        local timeMin = (virtualHappiness - HAPPY_THRESHOLD) / (DECAY_PER_SECOND * 60)
+        if timeMin < 1 then
+            predictionTimerText:SetText("~1 min until Content")
+        else
+            predictionTimerText:SetText(string.format("~%.0f min until Content", timeMin))
+        end
+    elseif happinessValue == 2 then
+        local timeMin = (virtualHappiness - CONTENT_THRESHOLD) / (DECAY_PER_SECOND * 60)
+        if timeMin < 1 then
+            predictionTimerText:SetText("~1 min until Unhappy")
+        else
+            predictionTimerText:SetText(string.format("~%.0f min until Unhappy", timeMin))
+        end
+    elseif happinessValue == 1 then
+        predictionTimerText:SetText("Pet is Unhappy! Feed it!")
+    end
+end
+
 local function UpdateVisual()
     if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or not loyaltyInfoText then
         return
     end
 
-    happinessBar:SetValue(happinessValue)
+    happinessBar:SetValue(happinessValue > 0 and virtualHappiness or 0)
     UpdateBarColor()
     UpdateMendPetIconVisibility()
 
@@ -324,6 +363,8 @@ local function UpdateVisual()
     else
         happinessBarText:SetText("Happiness N/A")
     end
+
+    UpdatePredictionTimer()
 end
 
 local function SyncToGameState(forceSnap)
@@ -336,13 +377,25 @@ local function SyncToGameState(forceSnap)
 
     if not hasPet then
         happinessValue = 0
+        lastHappinessState = 0
+        virtualHappiness = 50
         UpdateVisual()
         return
     end
 
     local state = GetPetHappiness and GetPetHappiness() or nil
     if state == 1 or state == 2 or state == 3 then
+        if forceSnap or lastHappinessState == 0 then
+            virtualHappiness = STATE_TARGET[state]
+        elseif state > lastHappinessState then
+            virtualHappiness = Clamp(virtualHappiness + FEED_BOOST, STATE_TARGET[state] - FEED_TARGET_BUFFER, 100)
+        elseif state < lastHappinessState then
+            if virtualHappiness > STATE_TARGET[state] then
+                virtualHappiness = STATE_TARGET[state]
+            end
+        end
         happinessValue = state
+        lastHappinessState = state
     else
         happinessValue = 0
     end
@@ -365,6 +418,9 @@ local function ToggleLock(locked)
         if loyaltyInfoText then
             loyaltyInfoText:SetTextColor(1, 1, 1)
         end
+        if predictionTimerText then
+            predictionTimerText:SetTextColor(1, 1, 1)
+        end
     else
         happinessBarText:SetTextColor(0.8, 0.95, 1)
         if petXpBarText then
@@ -375,6 +431,9 @@ local function ToggleLock(locked)
         end
         if loyaltyInfoText then
             loyaltyInfoText:SetTextColor(0.8, 0.95, 1)
+        end
+        if predictionTimerText then
+            predictionTimerText:SetTextColor(0.8, 0.95, 1)
         end
     end
 end
@@ -395,7 +454,7 @@ local function InitializeAddon()
     end
 
     mainframe:SetWidth(TurtlePetHappinessDB.width)
-    mainframe:SetHeight(TurtlePetHappinessDB.height + 66)
+    mainframe:SetHeight(TurtlePetHappinessDB.height + 82)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
@@ -419,7 +478,7 @@ local function InitializeAddon()
     happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 4, -4)
     happinessBar:SetPoint("TOPRIGHT", happinessBarFrame, "TOPRIGHT", -4, 0)
     happinessBar:SetHeight(13)
-    happinessBar:SetMinMaxValues(0, 3)
+    happinessBar:SetMinMaxValues(0, 100)
     happinessBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
 
     happinessBar.bg = happinessBar:CreateTexture(nil, "BACKGROUND")
@@ -467,6 +526,11 @@ local function InitializeAddon()
     petXpBarText:SetPoint("CENTER", petXpBar, "CENTER", 0, 1)
     petXpBarText:SetJustifyH("CENTER")
     petXpBarText:SetText("XP N/A")
+
+    predictionTimerText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    predictionTimerText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -79)
+    predictionTimerText:SetJustifyH("LEFT")
+    predictionTimerText:SetText("")
 
     petInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -6)
@@ -630,6 +694,11 @@ mainframe:SetScript("OnUpdate", function(_, elapsed)
     elapsedAccumulator = elapsedAccumulator + elapsed
     if elapsedAccumulator < 0.1 then
         return
+    end
+
+    if happinessValue > 0 then
+        virtualHappiness = Clamp(virtualHappiness - DECAY_PER_SECOND * elapsedAccumulator, 0, 100)
+        UpdatePredictionTimer()
     end
 
     elapsedAccumulator = 0
