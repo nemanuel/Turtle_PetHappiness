@@ -320,7 +320,7 @@ local function UpdateVisual()
     end
 
     if state == 1 or state == 2 or state == 3 then
-        happinessBarText:SetText(string.format("%s", stateText))
+        happinessBarText:SetText(string.format("Happiness %s", stateText))
     else
         happinessBarText:SetText("Happiness N/A")
     end
