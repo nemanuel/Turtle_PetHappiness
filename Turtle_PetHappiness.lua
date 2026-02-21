@@ -133,6 +133,7 @@ local function UpdateVisual()
 
     if UnitExists("pet") then
         local petLevel = UnitLevel("pet")
+        local playerLevel = UnitLevel("player")
         local petFamily = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
         local petXP, petXPMax = nil, nil
         local loyaltyLevelRaw, loyaltyNameRaw = nil, nil
@@ -173,9 +174,9 @@ local function UpdateVisual()
         end
 
         if loyaltyLevel and loyaltyName and loyaltyName ~= "" then
-            loyaltyInfoText:SetText(string.format("(Loyalty Level %d) %s", loyaltyLevel, loyaltyName))
+            loyaltyInfoText:SetText(string.format("Loyalty Level %d (%s)", loyaltyLevel, loyaltyName))
         elseif loyaltyLevel then
-            loyaltyInfoText:SetText(string.format("(Loyalty Level %d)", loyaltyLevel))
+            loyaltyInfoText:SetText(string.format("Loyalty Level %d", loyaltyLevel))
         elseif loyaltyName and loyaltyName ~= "" then
             loyaltyInfoText:SetText(string.format("%s", loyaltyName))
         else
@@ -191,6 +192,10 @@ local function UpdateVisual()
             petXpBar:SetValue(0)
             petXpBarText:SetText("XP N/A")
         end
+
+        if type(petLevel) == "number" and type(playerLevel) == "number" and petLevel == playerLevel then
+            petXpBarText:SetText("Max Level")
+        end
     else
         petInfoText:SetText("No active pet")
         loyaltyInfoText:SetText("")
@@ -200,7 +205,7 @@ local function UpdateVisual()
     end
 
     if state == 1 or state == 2 or state == 3 then
-        happinessBarText:SetText(string.format("Happiness %s", stateText))
+        happinessBarText:SetText(string.format("Happiness (%s)", stateText))
     else
         happinessBarText:SetText("Happiness N/A")
     end
@@ -342,7 +347,7 @@ local function InitializeAddon()
 
     happinessBar = CreateFrame("StatusBar", nil, happinessBarFrame)
     happinessBar:SetParent(happinessBarFrame)
-    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 4, -4)
+    happinessBar:SetPoint("TOPLEFT", happinessBarFrame, "TOPLEFT", 3, -4)
     happinessBar:SetPoint("TOPRIGHT", happinessBarFrame, "TOPRIGHT", -4, 0)
     happinessBar:SetHeight(13)
     happinessBar:SetMinMaxValues(0, 3)
@@ -382,7 +387,7 @@ local function InitializeAddon()
 
     petXpBar = CreateFrame("StatusBar", nil, petXpBarFrame)
     petXpBar:SetParent(petXpBarFrame)
-    petXpBar:SetPoint("TOPLEFT", petXpBarFrame, "TOPLEFT", 4, -4)
+    petXpBar:SetPoint("TOPLEFT", petXpBarFrame, "TOPLEFT", 3, -4)
     petXpBar:SetPoint("TOPRIGHT", petXpBarFrame, "TOPRIGHT", -4, 0)
     petXpBar:SetHeight(13)
     petXpBar:SetMinMaxValues(0, 100)
@@ -406,12 +411,12 @@ local function InitializeAddon()
     petInfoText:SetText("No active pet")
 
     loyaltyInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 5, -19)
+    loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -19)
     loyaltyInfoText:SetJustifyH("CENTER")
     loyaltyInfoText:SetText("")
 
     petDietIconFrame = CreateFrame("Frame", nil, mainframe)
-    petDietIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -6, -7)
+    petDietIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -7, -7)
     petDietIconFrame:SetWidth(16)
     petDietIconFrame:SetHeight(16)
     petDietIconFrame:SetFrameStrata("HIGH")
