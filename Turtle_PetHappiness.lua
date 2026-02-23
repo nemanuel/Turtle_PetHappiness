@@ -50,8 +50,12 @@ local petXpBar
 local petXpBarText
 local petInfoText
 local loyaltyInfoText
+local petTrainingPointsLabelText
+local petTrainingPointsText
 local petDietIconFrame
 local petDietIconTexture
+local helpIconFrame
+local helpIconTexture
 
 local happinessValue = 0
 local hasPet = false
@@ -106,7 +110,7 @@ end
 
 local function UpdateVisual()
     if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or
-        not loyaltyInfoText then
+        not loyaltyInfoText or not petTrainingPointsLabelText or not petTrainingPointsText then
         return
     end
 
@@ -135,7 +139,9 @@ local function UpdateVisual()
         local petLevel = UnitLevel("pet")
         local playerLevel = UnitLevel("player")
         local petFamily = UnitCreatureFamily and UnitCreatureFamily("pet") or nil
+        local petName = UnitName and UnitName("pet") or nil
         local petXP, petXPMax = nil, nil
+        local petTrainingPoints = nil
         local loyaltyLevelRaw, loyaltyNameRaw = nil, nil
         local loyaltyLevel = nil
         local loyaltyName = nil
@@ -146,6 +152,25 @@ local function UpdateVisual()
 
         if GetPetExperience then
             petXP, petXPMax = GetPetExperience()
+        end
+
+        if GetPetTrainingPoints then
+            local petTrainingPointsPrimary, petTrainingPointsSecondary = GetPetTrainingPoints()
+            local primaryNumber = tonumber(petTrainingPointsPrimary)
+            local secondaryNumber = tonumber(petTrainingPointsSecondary)
+
+            if type(primaryNumber) == "number" and primaryNumber < 0 then
+                petTrainingPoints = primaryNumber
+            elseif type(secondaryNumber) == "number" and secondaryNumber < 0 then
+                petTrainingPoints = secondaryNumber
+            elseif type(primaryNumber) == "number" and type(secondaryNumber) == "number" and
+                primaryNumber == 0 and secondaryNumber > 0 then
+                petTrainingPoints = -secondaryNumber
+            elseif type(primaryNumber) == "number" then
+                petTrainingPoints = primaryNumber
+            elseif type(secondaryNumber) == "number" then
+                petTrainingPoints = secondaryNumber
+            end
         end
 
         if type(loyaltyLevelRaw) == "number" then
@@ -167,10 +192,30 @@ local function UpdateVisual()
             petFamily = "Unknown"
         end
 
+        local petNameSuffix = ""
+        local hasCustomName = false
+        if petName and petName ~= "" then
+            local petNameLower = string.lower(petName)
+            local isUnknownName = (petNameLower == "unknown")
+            if not isUnknownName then
+                if petFamily and petFamily ~= "" then
+                    hasCustomName = petNameLower ~= string.lower(petFamily)
+                else
+                    hasCustomName = true
+                end
+            else
+                hasCustomName = false
+            end
+        end
+
+        if hasCustomName then
+            petNameSuffix = string.format(" (%s)", petName)
+        end
+
         if petLevel and petLevel > 0 then
-            petInfoText:SetText(string.format("Level %d %s", petLevel, petFamily))
+            petInfoText:SetText(string.format("Level %d %s%s", petLevel, petFamily, petNameSuffix))
         else
-            petInfoText:SetText(string.format("Level ? %s", petFamily))
+            petInfoText:SetText(string.format("Level ? %s%s", petFamily, petNameSuffix))
         end
 
         if loyaltyLevel and loyaltyName and loyaltyName ~= "" then
@@ -181,6 +226,24 @@ local function UpdateVisual()
             loyaltyInfoText:SetText(string.format("%s", loyaltyName))
         else
             loyaltyInfoText:SetText("(Loyalty Unknown)")
+        end
+
+        if type(petTrainingPoints) == "number" then
+            petTrainingPointsLabelText:SetText("TP")
+            petTrainingPointsLabelText:SetTextColor(1, 1, 1)
+            petTrainingPointsText:SetText(string.format("%d", petTrainingPoints))
+            if petTrainingPoints < 0 then
+                petTrainingPointsText:SetTextColor(1, 0.2, 0.2)
+            elseif petTrainingPoints == 0 then
+                petTrainingPointsText:SetTextColor(1, 1, 1)
+            else
+                petTrainingPointsText:SetTextColor(0.2, 0.9, 0.2)
+            end
+        else
+            petTrainingPointsLabelText:SetText("TP")
+            petTrainingPointsLabelText:SetTextColor(1, 1, 1)
+            petTrainingPointsText:SetText("N/A")
+            petTrainingPointsText:SetTextColor(1, 1, 1)
         end
 
         if petXP and petXPMax and petXPMax > 0 then
@@ -199,6 +262,8 @@ local function UpdateVisual()
     else
         petInfoText:SetText("No active pet")
         loyaltyInfoText:SetText("")
+        petTrainingPointsLabelText:SetText("")
+        petTrainingPointsText:SetText("")
         petXpBar:SetMinMaxValues(0, 100)
         petXpBar:SetValue(0)
         petXpBarText:SetText("XP N/A")
@@ -250,7 +315,7 @@ local function ToggleLock(locked)
             petXpBarText:SetTextColor(1, 1, 1)
         end
         if petInfoText then
-            petInfoText:SetTextColor(1, 1, 1)
+            petInfoText:SetTextColor(1, 0.82, 0)
         end
         if loyaltyInfoText then
             loyaltyInfoText:SetTextColor(1, 1, 1)
@@ -261,7 +326,7 @@ local function ToggleLock(locked)
             petXpBarText:SetTextColor(0.8, 0.95, 1)
         end
         if petInfoText then
-            petInfoText:SetTextColor(0.8, 0.95, 1)
+            petInfoText:SetTextColor(1, 0.82, 0)
         end
         if loyaltyInfoText then
             loyaltyInfoText:SetTextColor(0.8, 0.95, 1)
@@ -320,12 +385,12 @@ local function InitializeAddon()
     SyncBackupDb()
 
     mainframe:SetWidth(db.width)
-    mainframe:SetHeight(db.height + 68)
+    mainframe:SetHeight(db.height + 76)
     mainframe:SetFrameStrata("MEDIUM")
 
     happinessBarFrame = CreateFrame("Frame", nil, mainframe)
     happinessBarFrame:SetParent(mainframe)
-    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -33)
+    happinessBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -40)
     happinessBarFrame:SetWidth(db.width - 12)
     happinessBarFrame:SetHeight(db.height + 5)
 
@@ -365,7 +430,7 @@ local function InitializeAddon()
 
     petXpBarFrame = CreateFrame("Frame", nil, mainframe)
     petXpBarFrame:SetParent(mainframe)
-    petXpBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -56)
+    petXpBarFrame:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -62)
     petXpBarFrame:SetWidth(db.width - 12)
     petXpBarFrame:SetHeight(db.height + 5)
     petXpBarFrame:SetBackdropBorderColor(.7, .7, .7, 1)
@@ -405,18 +470,28 @@ local function InitializeAddon()
     petXpBarText:SetJustifyH("CENTER")
     petXpBarText:SetText("XP N/A")
 
-    petInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 8, -8)
+    petInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    petInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 8, -9)
     petInfoText:SetJustifyH("LEFT")
     petInfoText:SetText("No active pet")
 
     loyaltyInfoText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 6, -19)
+    loyaltyInfoText:SetPoint("TOPLEFT", mainframe, "TOPLEFT", 8, -25)
     loyaltyInfoText:SetJustifyH("CENTER")
     loyaltyInfoText:SetText("")
 
+    petTrainingPointsLabelText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    petTrainingPointsLabelText:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -28, -26)
+    petTrainingPointsLabelText:SetJustifyH("RIGHT")
+    petTrainingPointsLabelText:SetText("")
+
+    petTrainingPointsText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    petTrainingPointsText:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -8, -26)
+    petTrainingPointsText:SetJustifyH("RIGHT")
+    petTrainingPointsText:SetText("")
+
     petDietIconFrame = CreateFrame("Frame", nil, mainframe)
-    petDietIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -7, -7)
+    petDietIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -27, -8)
     petDietIconFrame:SetWidth(16)
     petDietIconFrame:SetHeight(16)
     petDietIconFrame:SetFrameStrata("HIGH")
@@ -444,6 +519,36 @@ local function InitializeAddon()
     petDietIconTexture:SetAllPoints(petDietIconFrame)
     petDietIconTexture:SetTexture("Interface\\Icons\\INV_Misc_Food_15")
     petDietIconFrame:Show()
+
+    helpIconFrame = CreateFrame("Frame", nil, mainframe)
+    helpIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -7, -8)
+    helpIconFrame:SetWidth(16)
+    helpIconFrame:SetHeight(16)
+    helpIconFrame:SetFrameStrata("HIGH")
+    helpIconFrame:SetFrameLevel(mainframe:GetFrameLevel() + 10)
+    helpIconFrame:EnableMouse(true)
+
+    helpIconFrame:SetScript("OnEnter", function()
+        if not GameTooltip then
+            return
+        end
+
+        GameTooltip:SetOwner(helpIconFrame, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Commands")
+        GameTooltip:AddLine("/tph [lock, unlock, reset, hide, show]", 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+
+    helpIconFrame:SetScript("OnLeave", function()
+        if GameTooltip then
+            GameTooltip:Hide()
+        end
+    end)
+
+    helpIconTexture = helpIconFrame:CreateTexture(nil, "OVERLAY")
+    helpIconTexture:SetAllPoints(helpIconFrame)
+    helpIconTexture:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    helpIconFrame:Show()
 
     mainframe:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
