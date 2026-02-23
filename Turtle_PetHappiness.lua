@@ -646,6 +646,14 @@ mainframe:SetScript("OnEvent", function(self, evt, a1)
         SyncToGameState(false)
     elseif evt == "UNIT_PET" and a1 == "player" then
         SyncToGameState(true)
+    elseif evt == "UNIT_PET_EXPERIENCE" then
+        if not a1 or a1 == "pet" then
+            SyncToGameState(false)
+        end
+    elseif evt == "PLAYER_XP_UPDATE" then
+        SyncToGameState(false)
+    elseif evt == "CHAT_MSG_COMBAT_XP_GAIN" then
+        SyncToGameState(false)
     elseif evt == "PET_BAR_UPDATE" or evt == "PET_UI_UPDATE" then
         SyncToGameState(false)
     end
@@ -656,6 +664,9 @@ mainframe:RegisterEvent("PLAYER_LOGIN")
 mainframe:RegisterEvent("PLAYER_ENTERING_WORLD")
 mainframe:RegisterEvent("UNIT_HAPPINESS")
 mainframe:RegisterEvent("UNIT_PET")
+mainframe:RegisterEvent("UNIT_PET_EXPERIENCE")
+mainframe:RegisterEvent("PLAYER_XP_UPDATE")
+mainframe:RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN")
 mainframe:RegisterEvent("PET_BAR_UPDATE")
 mainframe:RegisterEvent("PET_UI_UPDATE")
 
