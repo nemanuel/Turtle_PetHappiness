@@ -108,6 +108,58 @@ local function UpdateBarColor()
     end
 end
 
+local function NormalizeTrainingPointsValue(value)
+    local numberValue = tonumber(value)
+    if type(numberValue) ~= "number" then
+        return nil
+    end
+
+    if numberValue > 2147483647 and numberValue <= 4294967295 then
+        numberValue = numberValue - 4294967296
+    end
+
+    return numberValue
+end
+
+local function ResolveTrainingPointsValue(primaryValue, secondaryValue)
+    local primaryNumber = NormalizeTrainingPointsValue(primaryValue)
+    local secondaryNumber = NormalizeTrainingPointsValue(secondaryValue)
+
+    if type(primaryNumber) == "number" and type(secondaryNumber) == "number" then
+        if math.abs(primaryNumber) > 100000 and math.abs(secondaryNumber) <= 100000 then
+            return secondaryNumber
+        end
+
+        if math.abs(secondaryNumber) > 100000 and math.abs(primaryNumber) <= 100000 then
+            return primaryNumber
+        end
+
+        if primaryNumber == 0 and secondaryNumber > 0 then
+            return -secondaryNumber
+        end
+
+        if primaryNumber < 0 then
+            return primaryNumber
+        end
+
+        if secondaryNumber < 0 then
+            return secondaryNumber
+        end
+
+        return primaryNumber
+    end
+
+    if type(primaryNumber) == "number" then
+        return primaryNumber
+    end
+
+    if type(secondaryNumber) == "number" then
+        return secondaryNumber
+    end
+
+    return nil
+end
+
 local function UpdateVisual()
     if not happinessBar or not happinessBarText or not petXpBar or not petXpBarText or not petInfoText or
         not loyaltyInfoText or not petTrainingPointsLabelText or not petTrainingPointsText then
@@ -156,21 +208,7 @@ local function UpdateVisual()
 
         if GetPetTrainingPoints then
             local petTrainingPointsPrimary, petTrainingPointsSecondary = GetPetTrainingPoints()
-            local primaryNumber = tonumber(petTrainingPointsPrimary)
-            local secondaryNumber = tonumber(petTrainingPointsSecondary)
-
-            if type(primaryNumber) == "number" and primaryNumber < 0 then
-                petTrainingPoints = primaryNumber
-            elseif type(secondaryNumber) == "number" and secondaryNumber < 0 then
-                petTrainingPoints = secondaryNumber
-            elseif type(primaryNumber) == "number" and type(secondaryNumber) == "number" and
-                primaryNumber == 0 and secondaryNumber > 0 then
-                petTrainingPoints = -secondaryNumber
-            elseif type(primaryNumber) == "number" then
-                petTrainingPoints = primaryNumber
-            elseif type(secondaryNumber) == "number" then
-                petTrainingPoints = secondaryNumber
-            end
+            petTrainingPoints = ResolveTrainingPointsValue(petTrainingPointsPrimary, petTrainingPointsSecondary)
         end
 
         if type(loyaltyLevelRaw) == "number" then
