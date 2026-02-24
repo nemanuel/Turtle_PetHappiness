@@ -1,24 +1,26 @@
 # Turtle Pet Happiness
 
-A lightweight Turtle WoW / Vanilla-style addon for Hunters that shows a **smooth pet happiness meter**.
-
-Since `GetPetHappiness()` only exposes 3 states (Unhappy/Content/Happy), this addon builds a **virtual 0-100 meter** by combining:
-
-- current happiness state checkpoints,
-- gradual decay over time,
-- feed detection boosts,
-- smoothing to keep transitions natural.
+A lightweight Turtle WoW addon that improves Hunter pet status tracking through a clean, compact interface.
 
 ## Features
 
-- Continuous happiness bar (`0-100`) instead of only `1-3` buckets
-- Color-coded status:
-  - Green = Happy range
-  - Yellow = Content range
-  - Red = Unhappy range
-- Auto-sync with in-game pet state changes
-- Feed boost detection (spellcast/chat-event based)
+- Happiness bar based on in-game `1-3` pet happiness states
+  - Green = Happy
+  - Yellow = Content
+  - Red = Unhappy
+  - Gray = No pet / unknown
+- Pet XP bar (`current/max`), including max-level display
+- Pet info line: level + family (+ custom name when set)
+- Loyalty text line
+- Training points display (`TP:` label in white, value colorized)
+  - Red = negative
+  - White = 0
+  - Green = positive
+- Pet diet icon with tooltip
+- Help icon with command tooltip
 - Draggable frame
+- Lock/unlock support
+- Show/hide support
 - Position persistence per character
 
 ## Installation
@@ -35,40 +37,20 @@ Since `GetPetHappiness()` only exposes 3 states (Unhappy/Content/Happy), this ad
 
 ## Usage
 
-The bar appears when you have a pet and updates automatically.
+The frame updates automatically based on pet/game events.
 
 Slash commands:
 
 - `/tph lock` — lock frame position
 - `/tph unlock` — unlock and allow dragging
 - `/tph reset` — reset frame position to default
-
-## How It Works
-
-- API state mapping:
-  - `3 (Happy)` -> target ~`83`
-  - `2 (Content)` -> target ~`50`
-  - `1 (Unhappy)` -> target ~`17`
-- A small per-second decay drains the meter gradually.
-- On state changes, the meter eases toward the mapped target.
-- On feed detection, the meter receives a configurable boost.
-
-## Configuration (in code)
-
-In `Turtle_PetHappiness.lua`:
-
-- `DECAY_PER_SECOND` controls passive drain speed
-- `FEED_BOOST` controls gain after detected feeding
-
-Default values:
-
-- `DECAY_PER_SECOND = 0.02`
-- `FEED_BOOST = 25`
+- `/tph hide` — hide frame
+- `/tph show` — show frame (re-centers to default)
 
 ## Vanilla/Turtle Limitations
 
-The game does **not** expose exact internal happiness values/timers via API.
-This addon estimates happiness to provide a smoother, more useful display.
+Some values depend on what Turtle/Vanilla API returns at runtime.
+When data is unavailable, the addon falls back to safe placeholders such as `Unknown` or `N/A`.
 
 ## Version
 
