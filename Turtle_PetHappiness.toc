@@ -2,7 +2,7 @@
 ## Title: |cffabd473Turtle|r Pet Happiness
 ## Notes: Hunter addon that shows pet status in one compact frame.
 ## Author: Chromag
-## Version: 1.0.1
+## Version: 1.0.2
 ## LoadOnDemand: 0
 ## SavedVariables: TurtlePetHappinessDB
 ## SavedVariablesPerCharacter: TurtlePetHappinessCharDB

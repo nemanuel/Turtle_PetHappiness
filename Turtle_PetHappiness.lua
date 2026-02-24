@@ -108,34 +108,229 @@ local function UpdateBarColor()
     end
 end
 
+local function FirstPatternCapture(text, pattern)
+    if type(text) ~= "string" then
+        return nil
+    end
+
+    if string.match then
+        return string.match(text, pattern)
+    end
+
+    local _, _, captured = string.find(text, pattern)
+    return captured
+end
+
+local function ForEachPatternCapture(text, pattern, callback)
+    if type(text) ~= "string" then
+        return
+    end
+
+    if string.gmatch then
+        for captured in string.gmatch(text, pattern) do
+            callback(captured)
+        end
+        return
+    end
+
+    if string.gfind then
+        for captured in string.gfind(text, pattern) do
+            callback(captured)
+        end
+        return
+    end
+
+    local startIndex = 1
+    while true do
+        local startPos, endPos, captured = string.find(text, pattern, startIndex)
+        if not startPos then
+            break
+        end
+        callback(captured)
+        if endPos < startIndex then
+            startIndex = startIndex + 1
+        else
+            startIndex = endPos + 1
+        end
+    end
+end
+
 local function NormalizeTrainingPointsValue(value)
     local numberValue = tonumber(value)
+    if type(numberValue) ~= "number" and type(value) == "string" then
+        local extracted = FirstPatternCapture(value, "([-+]?%d+)")
+        if extracted then
+            numberValue = tonumber(extracted)
+        end
+    end
+
     if type(numberValue) ~= "number" then
         return nil
     end
 
-    if numberValue > 2147483647 and numberValue <= 4294967295 then
-        numberValue = numberValue - 4294967296
+    if numberValue > 32767 and numberValue <= 65535 then
+        numberValue = numberValue - 65536
+    end
+
+    if numberValue > 2147483647 then
+        numberValue = math.fmod(numberValue, 4294967296)
+        if numberValue > 2147483647 then
+            numberValue = numberValue - 4294967296
+        end
+    elseif numberValue < -2147483648 then
+        numberValue = math.fmod(numberValue, 4294967296)
+        if numberValue < -2147483648 then
+            numberValue = numberValue + 4294967296
+        end
     end
 
     return numberValue
 end
 
-local function ResolveTrainingPointsValue(primaryValue, secondaryValue)
+local function ExtractNonNegativeFromRawValue(value)
+    if type(value) == "number" then
+        if value >= 0 and value <= 10000 then
+            return value
+        end
+        return nil
+    end
+
+    if type(value) ~= "string" then
+        return nil
+    end
+
+    local bestCandidate = nil
+    ForEachPatternCapture(value, "([-+]?%d+)", function(token)
+        local candidate = tonumber(token)
+        if type(candidate) == "number" and candidate >= 0 and candidate <= 10000 then
+            if bestCandidate == nil or candidate < bestCandidate then
+                bestCandidate = candidate
+            end
+        end
+    end)
+
+    return bestCandidate
+end
+
+local function GetTrainingPointsFromUiText()
+    if not PetTrainingPointText or not PetTrainingPointText.GetText then
+        return nil
+    end
+
+    local uiText = PetTrainingPointText:GetText()
+    if type(uiText) ~= "string" or uiText == "" then
+        return nil
+    end
+
+    local extracted = FirstPatternCapture(uiText, "([-+]?%d+)")
+    if not extracted then
+        return nil
+    end
+
+    local value = tonumber(extracted)
+    if type(value) ~= "number" then
+        return nil
+    end
+
+    return value
+end
+
+local ResolveTrainingPointsValue
+
+local function ResolveNonNegativeTrainingPointsFallback(primaryValue, secondaryValue)
+    local primaryFallback = ExtractNonNegativeFromRawValue(primaryValue)
+    if type(primaryFallback) == "number" then
+        return primaryFallback
+    end
+
+    local secondaryFallback = ExtractNonNegativeFromRawValue(secondaryValue)
+    if type(secondaryFallback) == "number" then
+        return secondaryFallback
+    end
+
+    return nil
+end
+
+local function ResolveCurrentTrainingPoints()
+    local petTrainingPoints = nil
+
+    if GetPetTrainingPoints then
+        local petTrainingPointsPrimary, petTrainingPointsSecondary = GetPetTrainingPoints()
+        petTrainingPoints = ResolveTrainingPointsValue(petTrainingPointsPrimary, petTrainingPointsSecondary)
+    end
+
+    if petTrainingPoints == nil or petTrainingPoints == -1 then
+        local uiTrainingPoints = GetTrainingPointsFromUiText()
+        if type(uiTrainingPoints) == "number" then
+            petTrainingPoints = uiTrainingPoints
+        end
+    end
+
+    return petTrainingPoints
+end
+
+local function UpdateTrainingPointsDisplay(petTrainingPoints)
+    if type(petTrainingPoints) == "number" then
+        petTrainingPointsLabelText:SetText("TP")
+        petTrainingPointsLabelText:SetTextColor(1, 1, 1)
+        petTrainingPointsText:SetText(string.format("%d", petTrainingPoints))
+
+        if petTrainingPoints < 0 then
+            petTrainingPointsText:SetTextColor(1, 0.2, 0.2)
+        elseif petTrainingPoints == 0 then
+            petTrainingPointsText:SetTextColor(1, 1, 1)
+        else
+            petTrainingPointsText:SetTextColor(0.2, 0.9, 0.2)
+        end
+    else
+        petTrainingPointsLabelText:SetText("TP")
+        petTrainingPointsLabelText:SetTextColor(1, 1, 1)
+        petTrainingPointsText:SetText("N/A")
+        petTrainingPointsText:SetTextColor(1, 1, 1)
+    end
+end
+
+ResolveTrainingPointsValue = function(primaryValue, secondaryValue)
+    local primaryRaw = tonumber(primaryValue)
+    local secondaryRaw = tonumber(secondaryValue)
     local primaryNumber = NormalizeTrainingPointsValue(primaryValue)
     local secondaryNumber = NormalizeTrainingPointsValue(secondaryValue)
 
+    local primaryWasWrappedMax = (primaryRaw == 65535 or primaryRaw == 4294967295)
+    local secondaryWasWrappedMax = (secondaryRaw == 65535 or secondaryRaw == 4294967295)
+
     if type(primaryNumber) == "number" and type(secondaryNumber) == "number" then
-        if math.abs(primaryNumber) > 100000 and math.abs(secondaryNumber) <= 100000 then
+        if primaryWasWrappedMax and primaryNumber == -1 and secondaryNumber >= 0 then
             return secondaryNumber
         end
 
-        if math.abs(secondaryNumber) > 100000 and math.abs(primaryNumber) <= 100000 then
+        if secondaryWasWrappedMax and secondaryNumber == -1 and primaryNumber >= 0 then
             return primaryNumber
         end
 
-        if primaryNumber == 0 and secondaryNumber > 0 then
-            return -secondaryNumber
+        if primaryNumber == -1 and secondaryNumber >= 0 then
+            return secondaryNumber
+        end
+
+        if secondaryNumber == -1 and primaryNumber >= 0 then
+            return primaryNumber
+        end
+
+        if math.abs(primaryNumber) > 10000 and math.abs(secondaryNumber) <= 10000 then
+            return secondaryNumber
+        end
+
+        if math.abs(secondaryNumber) > 10000 and math.abs(primaryNumber) <= 10000 then
+            return primaryNumber
+        end
+
+        if primaryNumber >= 0 and secondaryNumber >= 0 then
+            local minValue = math.min(primaryNumber, secondaryNumber)
+            local maxValue = math.max(primaryNumber, secondaryNumber)
+
+            if maxValue >= (minValue * 10) and (maxValue - minValue) >= 100 then
+                return minValue
+            end
         end
 
         if primaryNumber < 0 then
@@ -143,17 +338,52 @@ local function ResolveTrainingPointsValue(primaryValue, secondaryValue)
         end
 
         if secondaryNumber < 0 then
+            local fallback = ResolveNonNegativeTrainingPointsFallback(primaryValue, secondaryValue)
+            if type(fallback) == "number" then
+                return fallback
+            end
+            if secondaryNumber == -1 then
+                return nil
+            end
             return secondaryNumber
+        end
+
+        if primaryNumber == -1 then
+            local fallback = ResolveNonNegativeTrainingPointsFallback(primaryValue, secondaryValue)
+            if type(fallback) == "number" then
+                return fallback
+            end
+            return nil
         end
 
         return primaryNumber
     end
 
     if type(primaryNumber) == "number" then
+        if math.abs(primaryNumber) > 10000 then
+            return nil
+        end
+        if primaryNumber == -1 then
+            local fallback = ResolveNonNegativeTrainingPointsFallback(primaryValue, secondaryValue)
+            if type(fallback) == "number" then
+                return fallback
+            end
+            return nil
+        end
         return primaryNumber
     end
 
     if type(secondaryNumber) == "number" then
+        if math.abs(secondaryNumber) > 10000 then
+            return nil
+        end
+        if secondaryNumber == -1 then
+            local fallback = ResolveNonNegativeTrainingPointsFallback(primaryValue, secondaryValue)
+            if type(fallback) == "number" then
+                return fallback
+            end
+            return nil
+        end
         return secondaryNumber
     end
 
@@ -206,10 +436,7 @@ local function UpdateVisual()
             petXP, petXPMax = GetPetExperience()
         end
 
-        if GetPetTrainingPoints then
-            local petTrainingPointsPrimary, petTrainingPointsSecondary = GetPetTrainingPoints()
-            petTrainingPoints = ResolveTrainingPointsValue(petTrainingPointsPrimary, petTrainingPointsSecondary)
-        end
+        petTrainingPoints = ResolveCurrentTrainingPoints()
 
         if type(loyaltyLevelRaw) == "number" then
             loyaltyLevel = loyaltyLevelRaw
@@ -266,23 +493,7 @@ local function UpdateVisual()
             loyaltyInfoText:SetText("(Loyalty Unknown)")
         end
 
-        if type(petTrainingPoints) == "number" then
-            petTrainingPointsLabelText:SetText("TP")
-            petTrainingPointsLabelText:SetTextColor(1, 1, 1)
-            petTrainingPointsText:SetText(string.format("%d", petTrainingPoints))
-            if petTrainingPoints < 0 then
-                petTrainingPointsText:SetTextColor(1, 0.2, 0.2)
-            elseif petTrainingPoints == 0 then
-                petTrainingPointsText:SetTextColor(1, 1, 1)
-            else
-                petTrainingPointsText:SetTextColor(0.2, 0.9, 0.2)
-            end
-        else
-            petTrainingPointsLabelText:SetText("TP")
-            petTrainingPointsLabelText:SetTextColor(1, 1, 1)
-            petTrainingPointsText:SetText("N/A")
-            petTrainingPointsText:SetTextColor(1, 1, 1)
-        end
+        UpdateTrainingPointsDisplay(petTrainingPoints)
 
         if petXP and petXPMax and petXPMax > 0 then
             petXpBar:SetMinMaxValues(0, petXPMax)
@@ -519,7 +730,6 @@ local function InitializeAddon()
     loyaltyInfoText:SetText("")
 
     petTrainingPointsLabelText = mainframe:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    petTrainingPointsLabelText:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -28, -26)
     petTrainingPointsLabelText:SetJustifyH("RIGHT")
     petTrainingPointsLabelText:SetText("")
 
@@ -527,6 +737,8 @@ local function InitializeAddon()
     petTrainingPointsText:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -8, -26)
     petTrainingPointsText:SetJustifyH("RIGHT")
     petTrainingPointsText:SetText("")
+
+    petTrainingPointsLabelText:SetPoint("RIGHT", petTrainingPointsText, "LEFT", -3, 0)
 
     petDietIconFrame = CreateFrame("Frame", nil, mainframe)
     petDietIconFrame:SetPoint("TOPRIGHT", mainframe, "TOPRIGHT", -27, -8)
